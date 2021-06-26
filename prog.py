@@ -1,30 +1,14 @@
 from random import randint, choice, seed
 from string import ascii_letters
 
-# standard library
-
 SEED = 0
 MAX_LIST_LEN = 2 ** 4
 MAX_STR_LEN = 2 ** 4
 MAX_INT_VAL = 2 ** 8
 NUM_EXAMPLES = 2 ** 12
 
-count_examples = 0
 
-
-def __inv__(reachable, *vars):
-    f = open("record.txt", "a")
-    f.write(str(reachable) + " ")
-    for var in vars:
-        f.write(str(var) + " ")
-    f.write("\n")
-    f.close()
-
-    global count_examples
-    count_examples += 1
-    if count_examples == NUM_EXAMPLES:
-        exit(0)
-
+# standard library
 
 def __free_list__():
     list_len = randint(0, MAX_LIST_LEN)
@@ -64,20 +48,20 @@ def __list_pop__(l):
     return l
 
 
-# clear record.txt
-seed(SEED)
-open("record.txt", "w")
+def generate_examples():
+    seed(SEED)
 
-# actual program
-while True:
-    n = __free_int__()
-    k = __free_str__()
-    d = __free_list__()
+    examples = []
+    while len(examples) < NUM_EXAMPLES:
+        n = __free_int__()
+        k = __free_str__()
+        d = __free_list__()
 
-    x = y = 0
-    while y < n and len(k) == 2:
-        __inv__(True, x, y, n, k, d)
-        x += 2
-        y += 1
-    # unreachable examples
-    __inv__(False, x, y, n, k, d)
+        x = y = 0
+        while y < n and len(k) == 2:
+            examples.append([True, x, y, n, k, d])
+            x += 2
+            y += 1
+        # unreachable examples
+        examples.append([False, x, y, n, k, d])
+    return examples
