@@ -51,7 +51,7 @@ def __list_pop__(l):
 def generate_examples():
     seed(SEED)
 
-    examples = []
+    examples = [[None, "x", "y", "n", "k", "d"]]
     while len(examples) < NUM_EXAMPLES:
         n = __free_int__()
         k = __free_str__()
