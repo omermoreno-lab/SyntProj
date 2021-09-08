@@ -103,7 +103,7 @@ def parse_grammar(g):
     return rules
 
 
-def get_examples(grammar):
+def get_conjectures(grammar):
     rules = parse_grammar(grammar)
     examples = prog.generate_examples()
     return btm_up_enum(rules, examples)
@@ -118,4 +118,4 @@ if __name__ == '__main__':
         "VAR ::= x | y | n",
         "RELOP ::= == | != | < | <="
     ]
-    get_examples(grammar)
+    get_conjectures(grammar)

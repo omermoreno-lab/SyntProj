@@ -30,13 +30,13 @@ class TokenRule(Rule):
         self.is_terminal = prod_rules[0].isLower()
 
     def get_examples(self, depth: int) -> list[Rule]:
-        return (self.prod_rules if self.is_terminal else grammar.get_rule(self.prod_rules[0]).get_examples(depth-1)) if depth > 0 else []
+        return (self.prod_rules if self.is_terminal else grammar.get_rule(self.prod_rules[0]).get_conjectures(depth - 1)) if depth > 0 else []
 
 class EnumRule(Rule):
     def __init__(self, prod_rules):
         Rule.__init__(self, prod_rules)
     def get_examples(self, depth: int) -> list[Rule]:
-        return [] if depth == 0 else flatten([rule.get_examples(depth-1) for rule in self.prod_rules])
+        return [] if depth == 0 else flatten([rule.get_conjectures(depth - 1) for rule in self.prod_rules])
 
 """
 A term rule is a single term without | in it. 
@@ -51,7 +51,7 @@ class TermRule(Rule):
         return [s1 + s2 for s2 in xs for s1 in l[0]]
 
     def get_examples(self, depth: int) -> list[Rule]:
-        return TermRule.get_all_combinations([r.get_examples(depth-1) for r in self.prod_rules])
+        return TermRule.get_all_combinations([r.get_conjectures(depth - 1) for r in self.prod_rules])
 
 class Grammar:
     rules: dict
@@ -84,7 +84,7 @@ def main():
         print_use()
     
     grammar = Grammar(map(lambda s : s.strip(), f_grammar.readlines()))
-    invariants = grammar.get_rule("S").get_examples(MAX_DEPTH)
+    invariants = grammar.get_rule("S").get_conjectures(MAX_DEPTH)
 
 class ConverterNodeVisitor(ast.NodeVisitor):
     abstract_code = ""
