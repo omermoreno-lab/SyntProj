@@ -93,7 +93,7 @@ def btm_up_enum(rules, spec):
 
 def parse_grammar(g):
     rules = dict()
-    for rule in grammar:
+    for rule in g:
         rule_split = rule.split(" ::= ")
         assert len(rule_split) == 2
         rule_type = rule_split[0]
@@ -103,13 +103,19 @@ def parse_grammar(g):
     return rules
 
 
+def get_examples(grammar):
+    rules = parse_grammar(grammar)
+    examples = prog.generate_examples()
+    return btm_up_enum(rules, examples)
+
+
+
 if __name__ == '__main__':
     # USE S FOR STARTING SYMBOL
+    # use VAR for program variables
     grammar = [
         "S ::= ( VAR RELOP VAR )",
         "VAR ::= x | y | n",
         "RELOP ::= == | != | < | <="
     ]
-    rules = parse_grammar(grammar)
-    examples = prog.generate_examples()
-    btm_up_enum(rules, examples)
+    get_examples(grammar)
