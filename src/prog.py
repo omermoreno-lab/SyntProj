@@ -5,7 +5,7 @@ SEED = 0
 MAX_LIST_LEN = 2 ** 4
 MAX_STR_LEN = 2 ** 4
 MAX_INT_VAL = 2 ** 8
-NUM_EXAMPLES = 2 ** 12
+NUM_EXAMPLES = 2 ** 10
 
 
 # standard library
@@ -58,10 +58,12 @@ def generate_examples():
         d = __free_list__()
 
         x = y = 0
-        while y < n and len(k) == 2:
+        # while y < n and len(k) == 2:
+        while y < n:
             examples.append([True, x, y, n, k, d])
             x += 2
             y += 1
         # unreachable examples
-        examples.append([False, x, y, n, k, d])
+        # examples.append([False, x, y, n, k, d])
+    # examples.append([False, -1, -2, 5, 'hafhasf', [200,33]])
     return examples

@@ -1,3 +1,9 @@
+import os
+import sys
+sys.path.insert(1, os.path.abspath(""))
+sys.path.insert(1, os.path.abspath("lib/"))
+
+from z3.z3 import *
 from lib.adt.tree import Tree
 from lib.parsing.earley.earley import Grammar, Parser, ParseTrees
 from lib.parsing.silly import SillyLexer
@@ -8,8 +14,10 @@ import unittest
 OP = {'+': operator.add, '-': operator.sub,
       '*': operator.mul, '/': operator.floordiv,
       '!=': operator.ne, '>': operator.gt, '<': operator.lt,
-      '<=': operator.le, '>=': operator.ge, '=': operator.eq}
+      '<=': operator.le, '>=': operator.ge, '=': operator.eq,
+      "==": operator.eq, "and": And, "or": Or, "not": Not}
 
+# I currently dithced this part, maybe later
 class SimplePyParser(object):
 
     TOKENS = r"if else while for in and or lambda (?P<bool>True|False) (?P<lb>\n) (?P<id>[^\W\d]\w*)  " \
@@ -130,7 +138,8 @@ class SimplePyParser(object):
         elif expr.root == "E0":
             return self.to_z3(expr.subtrees[0])
         elif expr.root == "id":
-            return var_to_z3[expr.subtrees[0].root]
+            pass
+            # return var_to_z3[expr.subtrees[0].root]
         elif expr.root == "num":
             # TODO: add functionality for floats
             return int(expr.subtrees[0].root)
@@ -149,16 +158,176 @@ class SimplePyParser(object):
 
 
 
-if __name__ == '__main__':
-    f = open('test1.py', 'r')
-    text = f.read()
-    f.close()
-    ast = SimplePyParser()(text)
-    
-    if ast:
-        print(">> Valid program.")
-        print(ast)
+class PyExprParserError(Exception):
+    """Exception raised for errors in the input.
+
+    Attributes:
+        expression -- input expression in which the error occurred
+        message -- explanation of the error
+    """
+
+    pass
+
+
+class PostProcessError(PyExprParserError):
+    def __init__(self, tree):
+        self.tree = tree
+        self.message = f"No right rule found when exploring {tree.root} node"
+
+
+class PyExprParser(object):
+    TOKENS = r"if else while for in lambda (?P<bool_op>and|or|not)(?P<bool>True|False) (?P<lb>\n) (?P<id>[^\W\d]\w*)  " \
+             r" (?P<string>\"[^\"]*\") (?P<num>[+\-]?\d+) (?P<op_assign>[+-]=)  (?P<op>[!<>=]=|([+\-*/<>])) " \
+             r"(?P<lparen>\() (?P<rparen>\)) (?P<lbrace>\{) (?P<rbrace>\}) (?P<colon>:) " \
+             r"(?P<lbracket>\[) (?P<rbracket>\]) (?P<assign>=) (?P<comma>,)".split()
+    GRAMMAR = r"""
+        E   ->   E0   |  E0 op E  |  E or E  |  E and E  |  not E
+        E0 -> id | num | bool | string | FUNC_CALL | LAMBDA | LIST | LIST_MEMBER
+        LIST_MEMBER -> id lbracket E rbracket
+        FUNC_CALL -> id lparen LIST_CONT rparen
+        LAMBDA -> lambda id colon E
+        LIST -> lbracket LIST_CONT rbracket
+        LIST_CONT -> LIST_INTER | TERMINATOR
+        LIST_INTER -> E | E comma LIST_INTER
+        ARGS_LIST -> id | id comma ARGS_LIST
+        TERMINATOR -> 
+        """
+    var_to_z3: dict[str:z3.ExprRef]
+    lambda_count = 0
+    list_count = 0
+
+    @staticmethod
+    def generate_lambda():
+        PyExprParser.lambda_count += 1
+        return f"lambda_{PyExprParser.lambda_count - 1}"
+
+    @staticmethod
+    def generate_list():
+        PyExprParser.list_count += 1
+        return f"lambda_{PyExprParser.list_count - 1}"
+
+    def __init__(self, var_to_z3):
+        self.tokenizer = SillyLexer(self.TOKENS)
+        self.grammar = Grammar.from_string(self.GRAMMAR)
+        self.var_to_z3 = var_to_z3
+
+    def __call__(self, program_text):
+        tokens = list(self.tokenizer(program_text))
+        print(f"Program Tokens: {tokens}")
+        earley = Parser(grammar=self.grammar, sentence=tokens, debug=False)  # TODO: change to False when not testing
+        earley.parse()
+
+        if earley.is_valid_sentence():
+            print("Program is valid, please ignore other prints")
+            trees = ParseTrees(earley)
+            print(50 * '-')
+            print(trees)
+            assert (len(trees) == 1)
+            return self.postprocess(trees.nodes[0])
+        else:
+            return None
+
+    def postprocess(self, t: Tree, constraints=None):
+        if constraints is None:
+            constraints = []
+        if t.root == "γ":
+            return self.postprocess(t.subtrees[0])
+        elif t.root == "E":
+            if len(t.subtrees) == 1:
+                return self.postprocess(t.subtrees[0], constraints)
+            elif len(t.subtrees) == 2:
+                operand = self.postprocess(t.subtrees[1], constraints)
+                operation = OP[t.subtrees[1].subtrees[0].root]
+                return operation(operand)
+            elif len(t.subtrees) == 3:
+                left_operand = self.postprocess(t.subtrees[0], constraints)
+                right_operand = self.postprocess(t.subtrees[2], constraints)
+                operation = OP[t.subtrees[1].subtrees[0].root]
+                return operation(left_operand, right_operand)
+            else:
+                raise ValueError("provided E with an invalid number of subtrees")
+        elif t.root == "E0":
+            return self.postprocess(t.subtrees[0], constraints)
+        # bool | string | FUNC_CALL | LAMBDA | LIST | LIST_MEMBER
+        elif t.root == "id":
+            return self.var_to_z3[t.subtrees[0].root]
+        elif t.root == "num":
+            return int(t.subtrees[0].root)
+        elif t.root == "bool":
+            return bool(t.subtrees[0].root)
+        elif t.root == "string":
+            return t.subtrees[0].root
+        
+        raise PostProcessError(t)
+
+        # elif t.root == "FUNC_CALL":
+        #     # id lparen LIST_CONT rparen
+        #     f = t.subtrees[0].subtrees[0].root
+        #     cont = PyExprParser.get_list_cont(t.subtrees[2])
+        #     return eval(f"f[{','.join(cont)}]")
+        # elif t.root == "LAMBDA":
+        #     # TODO: this option must support type inference in order to work, so meanwhile don't use it
+        #     #  I'm adding code for how it should look like
+        #     arg = t.subtrees[1].subtrees[0].root
+        #     id = PyExprParser.generate_lambda()
+        #     expr = self.postprocess(t.subtrees[3], constraints)
+        #     # declare lambda as function
+        #     # add constraint forall x: f(x) = (expression inside lambda)
+        # elif t.root == "LIST":
+        #     # currently supporting only lists of ints
+        #     l_name = PyExprParser.generate_list()
+
+def prove(f):
+    s = Solver()
+    s.add(Not(f))
+    if s.check() == unsat:
+        return True, None
     else:
-        print(">> Invalid program.")
+        return False, s.model()
+
+def run_test(tester, cond, vars, expected):
+    parser = PyExprParser(vars)
+    try:
+        res = parser(cond)
+    except PyExprParserError as e:
+        raise e
+    tester.assertEqual(cond, str(res))
+    
+    check = And(Implies(res, expected), Implies(expected,res))
+    tester.assertTrue(prove(check)[0])
+
+class TestPyExprParser(unittest.TestCase):
+    
+    # def test_simple_ints(self):
+    #     vars = {"x": z3.Int("x"), "y": z3.Int("y")}
+    #     cond = "x < y"
+    #     expected = vars["x"] < vars["y"]
+    #     run_test(self, cond, vars, expected)
+
+    # def test_simple_num(self):
+    #     vars = {"x": z3.Int("x"), "y": z3.Int("y")}
+    #     cond = "x < 1"
+    #     expected = vars["x"] < 1
+    #     run_test(self, cond, vars, expected)
+
+    def test_logical_operators(self):
+        vars = {"x": z3.Int("x"), "y": z3.Int("y")}
+        cond = "x < y and y < 1"
+        expected = And(vars["x"] < vars["y"], vars["y"] < 1)
+        run_test(self, cond, vars, expected)
+    
+if __name__ == '__main__':
+    unittest.main()
+
+# if __name__ == '__main__':
+#     with open('./src/test1.py', 'r') as f:
+#         text = f.read()
+#     ast = SimplePyParser()(text)
+    
+#     if ast:
+#         print(">> Valid program.")
+#         print(ast)
+#     else:
+#         print(">> Invalid program.")
 
 

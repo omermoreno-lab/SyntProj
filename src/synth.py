@@ -2,7 +2,12 @@ import re
 import string
 import prog
 
+EXPECTED_RES_VAR = "expected_res" 
+"""
+Class storing all current programs
 
+programs_map: mapping from  
+"""
 class Programs:
     def __init__(self):
         self.programs_map = dict()
@@ -30,7 +35,7 @@ def ground(s):
     return s.isalnum() and not s.isupper()
 
 
-def grow_program(prog_grow: string, programs, rules):
+def grow_program(prog_grow: str, programs, rules):
     progs = set()
     regex_nonterm = r"[A-Z]+"
     nonterms = set(re.findall(regex_nonterm, prog_grow))
@@ -63,34 +68,53 @@ def initial_programs(rules):
 
 
 def program_sat(cond, examples):
-    expr = ""
-    for i in range(1, len(examples)):
-        for j in range(1, len(examples[0])):
-            expr += examples[0][j] + "="
-            if type(examples[i][j]) == str:
-                expr += "\"" + examples[i][j] + "\"\n"
-            else:
-                expr += str(examples[i][j]) + "\n"
-        expr += "assert "
-        if not examples[i][0]:
-            expr += "not "
-        expr += cond + "\n"
-    try:
-        exec(expr)
-    except AssertionError:
-        return False
-    return True
+    # expr = ""
+    # for i in range(1, len(examples)):
+    #     for j in range(1, len(examples[0])):
+    #         expr += examples[0][j] + "="
+    #         if type(examples[i][j]) == str:
+    #             expr += "\"" + examples[i][j] + "\"\n"
+    #         else:
+    #             expr += str(examples[i][j]) + "\n"
+    #     expr += "assert "
+    #     if not examples[i][0]:
+    #         expr += "not "
+    #     expr += cond + "\n"
+    # try:
+    #     exec(expr)
+    # except AssertionError:
+    #     # print(f"expression {expr} failed {cond}")
+    #     return False
+    # return True
+    def state_as_dictionary(variables: list, state: list):
+        return dict(zip(variables, state))
+    
+    def satisfies(cond, state: dict) -> bool:
+        res = eval(cond, state) 
+        assert(isinstance(res, bool))
+        res = res if state[EXPECTED_RES_VAR] else not res
+        return res
+    
+    variables = examples[0]
+    variables[0] = EXPECTED_RES_VAR
+    states = [state_as_dictionary(variables, e) for e in examples[1:]]
+    return all([satisfies(cond, s) for s in states])
 
 
-def btm_up_enum(rules, spec):
+
+def btm_up_enum(rules, spec, max_depth, root = "S"):
     programs = initial_programs(rules)
-    while True:
+    invariants = []
+    for i in range(max_depth):
         programs.merge(grow(programs, rules))
-        for program in programs.get("S"):
-            if program_sat(program, spec):
-                return program
-
-
+        # print(50 * '-' + "\nnew loop\n" + 50* '-')
+        # for program in programs.get("S"):
+        #     if program_sat(program, spec):
+        #         yield program
+    for program in programs.get(root):
+        if program_sat(program, spec):
+            yield program
+    
 def parse_grammar(g):
     rules = dict()
     for rule in g:
@@ -103,11 +127,35 @@ def parse_grammar(g):
     return rules
 
 
-def get_conjectures(grammar):
-    rules = parse_grammar(grammar)
-    examples = prog.generate_examples()
-    return btm_up_enum(rules, examples)
+"""
+adds logical rules to the rule set
+return value: the new root of exploration tree
+                this must be passed to btm_up_enum
+"""
+def add_logical_operator_exploration(rules) -> str:
+    new_root = "LOGIC_ROOT"
+    rules[new_root] = ["S", "S or S"]
+    return new_root
 
+def get_invariants(grammar, max_depth=4):
+    rules = parse_grammar(grammar)
+    print("parsed grammar")
+    # print(rules)
+    examples = prog.generate_examples()
+    
+    print("generated examples")
+    # print(examples)
+    return list(btm_up_enum(rules, examples, max_depth))
+
+
+"""
+generates true invariant statements from the given already produced invariants
+does so by taking the every combination of invariants and checking if the 
+two ivnariants are satisfying all tests 
+"""
+# def generate_or_statements(candidates, states):
+#     res_dict = [(candidate, [satisfies(candidate, states)]) for candidate in candidates]
+#     for i, ()
 
 
 if __name__ == '__main__':
@@ -118,4 +166,5 @@ if __name__ == '__main__':
         "VAR ::= x | y | n",
         "RELOP ::= == | != | < | <="
     ]
-    get_conjectures(grammar)
+    # print(get_invariants(grammar))
+    print(", ".join(get_invariants(grammar)))
