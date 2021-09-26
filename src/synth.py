@@ -147,6 +147,10 @@ def get_invariants(grammar, max_depth=4):
     # print(examples)
     return list(btm_up_enum(rules, examples, max_depth))
 
+def get_property_suggestions(grammar, max_depth=4):
+    rules = parse_grammar(grammar)
+    examples = [p for p in prog.generate_examples() if p[0] != False]
+    return list(btm_up_enum(rules, examples, max_depth))
 
 """
 generates true invariant statements from the given already produced invariants
@@ -157,7 +161,6 @@ two ivnariants are satisfying all tests
 #     res_dict = [(candidate, [satisfies(candidate, states)]) for candidate in candidates]
 #     for i, ()
 
-
 if __name__ == '__main__':
     # USE S FOR STARTING SYMBOL
     # use VAR for program variables
@@ -166,5 +169,6 @@ if __name__ == '__main__':
         "VAR ::= x | y | n",
         "RELOP ::= == | != | < | <="
     ]
-    # print(get_invariants(grammar))
-    print(", ".join(get_invariants(grammar)))
+    print(get_invariants(grammar))
+
+

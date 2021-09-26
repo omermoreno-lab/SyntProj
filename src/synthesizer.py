@@ -37,8 +37,9 @@ class Enumerator(object):
 class Synthesizer(object):
     terminals: list
     non_terminals: list
-    prod_rules: typing.Dict[str, list[str]]
+    prod_rules: typing.Dict[str, list[list[str]]]
     grow: typing.Generator
+    examples: typing.dict[str, list[]]
 
     def __init__(self, terminals, non_terminals, prod_rules):
         self.terminals = terminals

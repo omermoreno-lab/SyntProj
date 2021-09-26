@@ -127,3 +127,4 @@ def prove_properties(invariants, properties):
 
 def str_to_z3(expr: str, var_to_z3: dict):
     parser = syntax.PyExprParser()
+    return parser(expr)
