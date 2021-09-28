@@ -114,7 +114,7 @@ def btm_up_enum(rules, spec, max_depth, root = "S"):
     for program in programs.get(root):
         if program_sat(program, spec):
             yield program
-    
+
 def parse_grammar(g):
     rules = dict()
     for rule in g:

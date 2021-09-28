@@ -98,6 +98,7 @@ def find_sat(f):
     is_sat = s.check() == sat
     return is_sat, (s.model() if is_sat else None)
 
+
 def var_to_z3_from_config(config_file: str):
     def safe_conversion(var_t: str):
         if var_t not in TYPE_TO_Z3:
@@ -113,18 +114,19 @@ def var_to_z3_from_config(config_file: str):
     with open(config_file, 'r') as f:
         return dict(map(parse_line, f))
 
+
 def filter_tautologies(invariants):
     return [invariant for invariant in invariants if not prove(invariant)[0]]       # filter all invariants that are fundementally true, aka tautologies
 
 
 def prove_properties(invariants, properties):
-    def prove_property(invariants, property):
-        return any((prove(Implies(invariant, property))[0] for invariant in invariants))
+    def prove_property(invariants, prop):
+        return any((prove(Implies(invariant, prop))[0] for invariant in invariants))
     
-    proven = [property for property in properties if prove_property(invariants, property)]
+    proven = [p for p in properties if prove_property(invariants, p)]
     return proven
 
 
 def str_to_z3(expr: str, var_to_z3: dict):
-    parser = syntax.PyExprParser()
+    parser = syntax.PyExprParser(var_to_z3)
     return parser(expr)
