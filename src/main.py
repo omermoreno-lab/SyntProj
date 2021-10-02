@@ -7,14 +7,17 @@ import z3
 import solver
 import syntax
 import synth
+from synthesizer import Synthesizer
 
 def simple_check():
     # These are parameters that should be given by the user
     start = time.time()
     grammar = [
-        "S ::= ( VAR RELOP VAR )",
-        "VAR ::= x | y | n",
-        "RELOP ::= == | != | < | <="
+    "S ::= ( S BOOLOP S' ) | S'",
+    "S' ::= ( VAR RELOP VAR )",
+    "BOOLOP ::= and | or",
+    "VAR ::= x | y | n",
+    "RELOP ::= == | != | < | <="
     ]
     var_to_z3 = {"x": z3.Int("x"), "y": z3.Int("y"), "n": z3.Int("n")}
     properties_str = ["x > 0"]    
@@ -48,7 +51,7 @@ def harder_check():
     properties_str = ["x > 0"]    
     
     expr_parser = syntax.PyExprParser(var_to_z3)
-    
+    syhnthesizer = Synthesizer.from_text()
     invariants_str = synth.get_invariants(grammar)
     invariants = [expr_parser(e) for e in invariants_str]
     properties = [expr_parser(p) for p in properties_str]
