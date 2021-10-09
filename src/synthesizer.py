@@ -83,7 +83,7 @@ class Synthesizer(object):
     states: list[dict]
     tokens: list[str]
     prev_new_examples: dict		# TODO: add type hint here
-
+    program_result: dict
 
     def __init__(self, tokens, prod_rules, states):
         self.tokens = tokens
@@ -94,6 +94,7 @@ class Synthesizer(object):
         self.states = states
         self.__generation_order = Synthesizer.__dfs_sort(self.prod_rules)
         self.prev_new_examples = {t: {t} for t in self.terminals}
+        self.program_result = {}
         print(f"Synth init:\n\
             tokens = {self.tokens}\n\
             terminals = {self.terminals}\n\
@@ -179,6 +180,14 @@ class Synthesizer(object):
         # return {t: _grow_var(t) for t in self.tokens}
         self.examples |= {t: grow_var(t) for t in self.non_terminals}
 
+    def get_program_results(self, program):
+        if program in self.program_result:
+            return self.program_result[program]
+        else:
+            program_evaluation = [eval(program, state) for state in self.states]
+            self.program_result[program] = program_evaluation
+            return program_evaluation 
+
     def __grow_merge(self):
         """
         This is my try to make an efficient grow function,
@@ -189,17 +198,28 @@ class Synthesizer(object):
 
         # THIS MIGHT NOT BE THE BEST OPTION TO DO THIS, DUE TO EFFICIENCY REASONS,
         # another option is to build all the possible expressions with the expandable tokens in them and then use replace
+        
+        # def make_unique(examples_iterable):
+        #     unique_list = []
+        #     for idx, e in enumerate(examples_iterable):
+        #         if is_unique(e, examples_iterable[:idx]):
+        #             unique_list.append(e)
+        #     return unique_list
+        
         def get_new_pr_examples(pr, new_examples):          # pr stands for production rule
             first_token = pr[0]
             if len(pr) == 1:
                 return new_examples[first_token] if first_token in new_examples else [], \
-                    self.prev_new_examples[first_token] if first_token in self.prev_new_examples else []      # TODO: This looks probably like the right option but ok
+                   self.examples[first_token]
+                    # self.prev_new_examples[first_token] if first_token in self.prev_new_examples else []      # TODO: This looks probably like the right option but ok
+                    
                 # return self.prev_new_examples[first_token] if first_token in self.prev_new_examples else [], \
                 #     self.examples[first_token]
 
             tail_ne, tail_oe = get_new_pr_examples(pr[1:], new_examples)     # new examples and old examples
             token_ne = self.prev_new_examples[first_token] if first_token in self.prev_new_examples else []
-            token_oe = self.examples[first_token] if first_token not in self.__get_exapndable_tokens() else self.prev_new_examples[first_token]
+            # token_oe = self.examples[first_token] if first_token not in self.__get_exapndable_tokens() else self.prev_new_examples[first_token] # This might be the source of the problem
+            token_oe = self.examples[first_token]
 
             # token_new_examples = (new_examples[curr_token] if curr_token in new_examples else []) \
             #     if  curr_token in self.non_terminals else self.examples[curr_token]
@@ -210,7 +230,7 @@ class Synthesizer(object):
                 
             new_programs = list(chain(tail_new, curr_new, all_new))
             old_programs = [oe1 + oe2 for oe2 in tail_oe for oe1 in token_oe]
-            print(f"new examples: {new_examples}")
+            print(f"new examples: {new_programs}")
             return new_programs, old_programs
 
         
@@ -221,22 +241,25 @@ class Synthesizer(object):
             if t not in self.__get_exapndable_tokens():
                 return
             new_examples[t] = flatten([(get_new_pr_examples(pr, new_examples)[0]) for pr in self.prod_rules[t] if is_expandable(pr)])
-        
+            if t == 'S':
+                print(f"new S examples: {new_examples[t]}")
+            # new_examples[t] = flatten([(make_unique(get_new_pr_examples(pr, new_examples)[0])) for pr in self.prod_rules[t] if is_expandable(pr)])
+
         def is_unique(example, other_examples):
-            print(f"example: {example}, other_examples: {other_examples}")
-            return all((any((eval(example, state) != eval(e, state) for state in self.states)) for e in other_examples))
+            # print(f"example: {example}, other_examples: {other_examples}")
+            return all((any((res_e != res_oe for res_e, res_oe in zip(self.get_program_results(example), self.get_program_results(e)))) for e in other_examples))
 
         new_examples = {}
         for token in self.__generation_order:
             grow_token(token, new_examples)
         unique_examples = {t: {ne for ne in new_examples[t] if is_unique(ne, self.examples[t])} for t in new_examples}
         print(f"unique_examples: {unique_examples}")
-        print(f"current examples: {self.examples}")
+        # print(f"current examples: {self.examples}")
         self.prev_new_examples = unique_examples
         for t in unique_examples:
             # print(f"t = {t}")
-            print(f"current token: {t}, examples: {self.examples[t]}")
-            self.examples[t].union(set(unique_examples[t]))
+            self.examples[t] = self.examples[t].union(unique_examples[t])
+        print(f"S examples: {self.examples['S']}")
 
 
     @staticmethod
@@ -404,12 +427,16 @@ class Synthesizer(object):
             if t in self.non_terminals:
                 self.examples[t] = set(flatten([grow_pr(pr) for pr in self.prod_rules[t]]))
                 # TODO: problem is in the line below, the rules for S after that rule are double boolops
-                self.prev_new_examples[t] = set(flatten([grow_pr(pr) for pr in self.prod_rules[t]]))
+                # self.prev_new_examples[t] = set(flatten([grow_pr(pr) for pr in self.prod_rules[t]]))
+                self.prev_new_examples[t] = self.examples[t].copy()
 
         for i in range(max_depth):
             self.__grow_merge()
-        for program in self.examples["S"]:
+        
+        print(f"all S programs: {self.examples['S']}")
+        for program in self.examples['S']:
             if satisfies_all(program, self.states):
+                # print(f"program returned: {program}")
                 yield program
 
 if __name__ == "__main__":
@@ -433,6 +460,7 @@ if __name__ == "__main__":
     synthesizer = Synthesizer.from_text(grammar, states)
     # print(f"expanders are: {synthesizer.__get_exapndable_tokens()}")
     print(set(synthesizer.bottom_up_optimized(1)))
+    # print(set(synthesizer.bottom_up_enumeration(4)))
     # print(set(synthesizer.bottom_up_enumeration(4)))
     print(f"time took synthesizer: {time.time()-start} seconds")
     # TODO: something is wrong with the merge function, fix it!!!!!!
