@@ -139,7 +139,7 @@ class Synthesizer(object):
             grammar_list = f.readlines()
         with open(state_file, 'r') as f:
             state_list = f.readlines()
-        return Synthesizer.from_text(grammar_file, state_list)
+        return Synthesizer.from_text(grammar_list, state_list)
 
     @staticmethod
     def __ground(s):
