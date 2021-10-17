@@ -15,9 +15,7 @@ NUM_EXAMPLES = 2 ** 4
 
 def __free_list__(init_function):
     list_len = randint(0, MAX_LIST_LEN)
-    d = []
-    for i in range(list_len):
-        d.append(init_function())
+    d = [init_function() for _ in range(list_len)]
     return d
 
 
@@ -53,7 +51,7 @@ def __list_pop__(l):
 
 def __get_var_and_initializer(line: str, type_str_to_initializer: dict):
     # print(f"current line: {line}")
-    var, var_type = list(s.strip() for s in line.split(':'))
+    var, var_type = [s.strip() for s in line.split(':')]
     return var, type_str_to_initializer[var_type]
 
 
@@ -68,7 +66,7 @@ def generate_examples(program: str, var_to_initializer: dict):
     vars.insert(0, None)
     examples = [vars]       # first entry of examples is the 
     for i in range(NUM_EXAMPLES):
-        exec(program, __get_randomized_environment(var_to_initializer))     # this will generate positive examples using the __inv__ call
+        exec(program, __get_randomized_environment(var_to_initializer))     # this will generate positive examples using the __invariant__ call
 
     #     n = __free_int__()
     #     k = __free_str__()
@@ -85,6 +83,7 @@ def generate_examples(program: str, var_to_initializer: dict):
     # # examples.append([False, -1, -2, 5, 'hafhasf', [200,33]])
     examples.extend(std.get_recorded_states())
     return examples
+
 
 def generate_examples_from_files(program_path: str, env_setting_path: str):
     type_str_to_initializer = {"int": __free_int__, "str": __free_str__, "list[str]": lambda: __free_list__(__free_str__), "list[int]": lambda: __free_list__(__free_int__)}

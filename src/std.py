@@ -10,7 +10,39 @@ MAX_LIST_LEN = 2 ** 4
 MAX_STR_LEN = 2 ** 4
 MAX_INT_VAL = 2 ** 8
 NUM_EXAMPLES = 2 ** 12
-__INVARIANTS = []
+__INVARIANTS = None
+
+# api for interacting with globals
+
+
+def set_invariants_head(variables: list):
+    global __INVARIANTS
+    variables = ["expected_res"].extend(variables)
+    __INVARIANTS = [variables]
+
+
+def get_recorded_states():
+    return __INVARIANTS
+
+
+def write_recorded_states_file(file_path: str, invariants = __INVARIANTS):
+    if not invariants:
+        raise ValueError("States undefined, ignoring request")
+    with open(file_path, 'w') as f:
+        json.dump(invariants, f)
+
+
+def extend_recorded_states_file(file_path: str, invariants = __INVARIANTS):
+    invariants = invariants[1:]
+    with open(file_path, 'r') as f:
+        existing_invariants = json.load(f)
+    
+    existing_invariants.extend(invariants)
+    
+    with open(file_path, 'w') as f:
+        json.dump(existing_invariants, f)
+
+
 # standard library
 
 # def __invariant__(*args):
@@ -27,14 +59,10 @@ __INVARIANTS = []
 
 def __invariant__(*args):
     # print(f"args: {args}")
+    if not __INVARIANTS:
+        raise ValueError("Call set_invariant_head before calling __invariant")
     __INVARIANTS.append(list(args))
 
-def get_recorded_states():
-    return __INVARIANTS
-
-def dump_recorded_states_to_file(file_path: str, invariants = __INVARIANTS):
-    with open(file_path, 'w') as f:
-        json.dump(invariants, f)
 
 def __list_reverse__(l):
     l = l[:]
