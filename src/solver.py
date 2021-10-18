@@ -1,6 +1,7 @@
 import z3
 from z3 import *
 import syntax
+import json
 # from enum import Enum
 # import itertools
 # import typing
@@ -106,27 +107,49 @@ def var_to_z3_from_config(config_file: str):
                              f" The supported types are {TYPE_TO_Z3.keys()}")
         return TYPE_TO_Z3[var_t]
 
-    def parse_line(line: str):
-        definition = [s.strip() for s in line.split(':')]
-        var, var_t = definition[0], definition[1]
-        return var, safe_conversion(var_t)(var)
-
     with open(config_file, 'r') as f:
-        return dict(map(parse_line, f))
-
-
-def filter_tautologies(invariants):
-    return [invariant for invariant in invariants if not prove(invariant)[0]]       # filter all invariants that are fundementally true, aka tautologies
-
-
-def prove_properties(invariants, properties):
-    def prove_property(invariants, prop):
-        return any((prove(Implies(invariant, prop))[0] for invariant in invariants))
-    
-    proven = [p for p in properties if prove_property(invariants, p)]
-    return proven
+        env_dict = json.load(f)
+        return {var: safe_conversion(var_t) for var, var_t in env_dict.items()}
 
 
 def str_to_z3(expr: str, var_to_z3: dict):
     parser = syntax.PyExprParser(var_to_z3)
     return parser(expr)
+
+# def filter_tautologies(invariants):
+#     return [invariant for invariant in invariants if not prove(invariant)[0]]       # filter all invariants that are fundementally true, aka tautologies
+
+def filter_tautologies(formulas_iter):     # input: z3 invariants generator
+    return filter(lambda f: not prove(f)[0], formulas_iter)
+
+
+def formulas_to_z3(formulas_iter, var_to_z3: dict):
+    return map(lambda f: str_to_z3(f, var_to_z3), formulas_iter)
+
+
+# def prove_properties(invariants, properties):       # returns the invariants that have at least one invariant that satisfies them
+#     def prove_property(invariants, prop):
+#         return any((prove(Implies(invariant, prop))[0] for invariant in invariants))
+    
+#     proven = [p for p in properties if prove_property(invariants, p)]
+#     return proven
+
+# Both inputs should be z3 formulas
+def prove_properties(invariants_iter, properties: list):
+    proven = []
+    unproven = None
+    prev_unproven = properties[:]
+
+    for inv in invariants_iter:
+        unproven = []
+        for p in prev_unproven:
+            res = prove(Implies(inv, p))
+            if res[0]:
+                proven.append(p)
+                if len(proven) == len(properties):
+                    return proven 
+            else:
+                # TODO: add counter example as negative example in synth and in file
+                unproven.append(p)
+        prev_unproven = unproven
+    return proven
