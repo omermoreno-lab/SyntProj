@@ -1,11 +1,14 @@
 import argparse
 import functools
 import time
+from pathlib import Path
 
 import z3
 
 import solver
 import syntax
+import prog
+import json
 from synthesizer import Synthesizer
 
 def simple_check():
@@ -70,5 +73,45 @@ def harder_check():
     print(f"suggested properties: {solver.filter_tautologies(suggested_properties)}")
     print(f"time took: {time.time()-start} seconds")
 
+# if __name__ == "__main__":
+#     harder_check()
+
+def __get_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("source", type=str, help="The source folder from which all files should be pulled")
+    parser.add_argument("tactic", type=str, choices=["simple", "cond-extraction", "logical-and-adder"], help="The tactic used by the synthesizer when producing the invariant")
+    parser.add_argument("-d", "--dest", nargs=1, type=str, help="Choose the destination of the result file, default is <source>/res.json")
+    parser.add_argument("-ge", "--generate-examples", action="store_true", help="Generate examples randomly")
+    parser.add_argument("-md", "--max-depth", nargs=1, type=int, help="Set max depth for the synthesizer, default=2")
+
+    args = parser.parse_args()
+    return args
+
+def activate_target(tactic):
+    
+
 if __name__ == "__main__":
-    harder_check()
+    args = __get_args()
+
+    folder_path = args.source
+    # TODO: add support for different tactics
+    root_dir = str(Path(__file__).parent.parent)
+    test_folder = "\\".join([root_dir, "tests", args.source])
+
+    prog_path = "\\".join([test_folder, "test.py"])
+    grammar_path = "\\".join([test_folder, "grammar.txt"])
+    records_path = "\\".join([test_folder, "records.json"])
+    dest_path = "\\".join([root_dir, args.dest[0]]) if args.dest else "\\".join([test_folder, "res.json"])
+    env_path = "\\".join([root_dir, args.dest[0]]) if args.dest else "\\".join([test_folder, "env.json"])
+
+    if args.ge:
+        examples = prog.generate_examples_from_files(prog_path, env_path)
+        with open(records_path, 'r') as f:
+            json.dump(examples, f)
+    else:
+        with open(records_path, 'r') as f:
+            examples = json.load(f)
+    
+    synth = Synthesizer.from_folder(test_folder)
+    activate_tactic(synth, args.tactic)
+
