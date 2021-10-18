@@ -87,8 +87,14 @@ def __get_args():
     args = parser.parse_args()
     return args
 
-def activate_target(tactic):
-    
+def get_invariants_by_tactic(synth: Synthesizer, tactic, max_depth):
+    if tactic == "simple":
+        return synth.bottom_up_optimized(max_depth)
+    elif tactic == "cond-extraction":
+        pass
+    else:
+        invariants = synth.bottom_up_optimized(max_depth)
+        return [functools.reduce(lambda a,b: f"({a} and {b})", invariants)]
 
 if __name__ == "__main__":
     args = __get_args()
@@ -103,7 +109,7 @@ if __name__ == "__main__":
     records_path = "\\".join([test_folder, "records.json"])
     dest_path = "\\".join([root_dir, args.dest[0]]) if args.dest else "\\".join([test_folder, "res.json"])
     env_path = "\\".join([root_dir, args.dest[0]]) if args.dest else "\\".join([test_folder, "env.json"])
-
+    
     if args.ge:
         examples = prog.generate_examples_from_files(prog_path, env_path)
         with open(records_path, 'r') as f:
@@ -113,5 +119,8 @@ if __name__ == "__main__":
             examples = json.load(f)
     
     synth = Synthesizer.from_folder(test_folder)
-    activate_tactic(synth, args.tactic)
+    var_to_z3 = solver.var_to_z3_from_config(env_path)
+    invariant_strings = get_invariants_by_tactic(synth, args.tactic)
+    invariants_iter = solver.filter_tautologies(solver.formulas_to_z3(invariant_strings, var_to_z3))
+
 
