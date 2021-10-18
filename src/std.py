@@ -1,7 +1,6 @@
 import inspect
 import functools
 import os
-import json
 from random import randint, choice, seed
 from string import ascii_letters
 
@@ -10,37 +9,14 @@ MAX_LIST_LEN = 2 ** 4
 MAX_STR_LEN = 2 ** 4
 MAX_INT_VAL = 2 ** 8
 NUM_EXAMPLES = 2 ** 12
-__INVARIANTS = None
+__INVARIANTS = []
 
 # api for interacting with globals
-
-
-def set_invariants_head(variables: list):
-    global __INVARIANTS
-    variables = ["expected_res"].extend(variables)
-    __INVARIANTS = [variables]
 
 
 def get_recorded_states():
     return __INVARIANTS
 
-
-def write_recorded_states_file(file_path: str, invariants = __INVARIANTS):
-    if not invariants:
-        raise ValueError("States undefined, ignoring request")
-    with open(file_path, 'w') as f:
-        json.dump(invariants, f)
-
-
-def extend_recorded_states_file(file_path: str, invariants = __INVARIANTS):
-    invariants = invariants[1:]
-    with open(file_path, 'r') as f:
-        existing_invariants = json.load(f)
-    
-    existing_invariants.extend(invariants)
-    
-    with open(file_path, 'w') as f:
-        json.dump(existing_invariants, f)
 
 
 # standard library
@@ -59,8 +35,7 @@ def extend_recorded_states_file(file_path: str, invariants = __INVARIANTS):
 
 def __invariant__(*args):
     # print(f"args: {args}")
-    if not __INVARIANTS:
-        raise ValueError("Call set_invariant_head before calling __invariant")
+    global __INVARIANTS
     __INVARIANTS.append(list(args))
 
 

@@ -6,7 +6,6 @@ import z3
 
 import solver
 import syntax
-import synth
 from synthesizer import Synthesizer
 
 def simple_check():
@@ -39,11 +38,14 @@ def simple_check():
     print(f"time took: {time.time()-start} seconds")
 
 def harder_check():
+    import prog
+    examples = prog.generate_examples_from_files("D:/Technion_Homework/Semester 6/Software Synthesis/SyntProj/tests/harder_check/test.py", "D:/Technion_Homework/Semester 6/Software Synthesis/SyntProj/tests/harder_check/env.json")
+    prog.write_recorded_states_file("D:/Technion_Homework/Semester 6/Software Synthesis/SyntProj/tests/harder_check/records.json")
     start = time.time()
     grammar = [
         "S ::= ( S LOGOP S ) | ( VAR RELOP VAR ) | ( VAR RELOP VAL ) ",
         "LOGOP ::= and | or",
-        "VAL ::= 0 | 1 | -1",
+        "VAL ::= 0 | 1",
         "VAR ::= x | y | n",
         "RELOP ::= == | != | < | <="
     ]
@@ -51,8 +53,10 @@ def harder_check():
     properties_str = ["x > 0"]    
     
     expr_parser = syntax.PyExprParser(var_to_z3)
-    syhnthesizer = Synthesizer.from_text()
-    invariants_str = synth.get_invariants(grammar)
+    synthesizer = Synthesizer.from_folder("D:/Technion_Homework/Semester 6/Software Synthesis/SyntProj/tests/harder_check")
+    # for inv in synthesizer.bottom_up_optimized(2):
+    #     print(f"inv: {inv}")
+    invariants_str = list(synthesizer.bottom_up_optimized(2))
     invariants = [expr_parser(e) for e in invariants_str]
     properties = [expr_parser(p) for p in properties_str]
     non_obvious_invariants = solver.filter_tautologies(invariants)

@@ -1,6 +1,8 @@
-from random import randint, choice, seed
-from string import ascii_letters
+import json
 import unittest
+from random import choice, randint, seed
+from string import ascii_letters
+
 import std
 
 # SEED = None
@@ -31,32 +33,14 @@ def __free_int__():
     return randint(0, MAX_INT_VAL)
 
 
-def __list_reverse__(l):
-    l = l[:]
-    l.reverse()
-    return l
+# def __get_var_and_randomizer(line: str, type_str_to_randomizer: dict):
+#     # print(f"current line: {line}")
+#     var, var_type = [s.strip() for s in line.split(':')]
+#     return var, type_str_to_randomizer[var_type]
 
 
-def __list_append__(l, e):
-    l = l[:]
-    l.append(e)
-    return l
-
-
-def __list_pop__(l):
-    l = l[:]
-    l.pop()
-    return l
-
-
-def __get_var_and_initializer(line: str, type_str_to_initializer: dict):
-    # print(f"current line: {line}")
-    var, var_type = [s.strip() for s in line.split(':')]
-    return var, type_str_to_initializer[var_type]
-
-
-def __get_randomized_environment(var_to_initializer: dict):
-    return {v: var_to_initializer[v]() for v in var_to_initializer}
+def __get_randomized_environment(var_to_randomizer: dict):
+    return {v: var_to_randomizer[v]() for v in var_to_randomizer}
 
 
 def generate_examples(program: str, var_to_initializer: dict):
@@ -64,7 +48,7 @@ def generate_examples(program: str, var_to_initializer: dict):
     seed()
     vars = list(var_to_initializer.keys())
     vars.insert(0, None)
-    examples = [vars]       # first entry of examples is the 
+    examples = [vars]       # first entry of examples is the variables' names
     for i in range(NUM_EXAMPLES):
         exec(program, __get_randomized_environment(var_to_initializer))     # this will generate positive examples using the __invariant__ call
 
@@ -86,34 +70,57 @@ def generate_examples(program: str, var_to_initializer: dict):
 
 
 def generate_examples_from_files(program_path: str, env_setting_path: str):
-    type_str_to_initializer = {"int": __free_int__, "str": __free_str__, "list[str]": lambda: __free_list__(__free_str__), "list[int]": lambda: __free_list__(__free_int__)}
+    type_str_to_randomizer = {"int": __free_int__, "str": __free_str__, "list[str]": lambda: __free_list__(__free_str__), "list[int]": lambda: __free_list__(__free_int__)}
     # TODO: make str to initializer smarter, using reg expressions
     with open(program_path, 'r') as f:
         program = f.read()
     
     with open(env_setting_path, 'r') as f:
-        var_to_initializer = dict(__get_var_and_initializer(line, type_str_to_initializer) for line in f.readlines())
+        var_to_type_dict = json.load(f)
+    var_to_randomizer = dict((var, type_str_to_randomizer[var_type]) for var, var_type in var_to_type_dict.items())
 
     
-    return generate_examples(program, var_to_initializer)
+    return generate_examples(program, var_to_randomizer)
+
+
+def write_recorded_states_file(record_file_path: str, records = std.get_recorded_states()):
+    if len(records) == 0:
+        raise ValueError("States undefined, ignoring request")
+    with open(record_file_path, 'w') as f:
+        json.dump(records, f)
+
+
+def extend_recorded_states_file(record_file_path: str, records = None):
+    if not records:      # the ususal case, getting the invariants from the function
+        records = std.get_recorded_states()
+    elif len(records) == 0:
+        raise ValueError("States undefined, ignoring request")
+
+    with open(record_file_path, 'r') as f:
+        existing_records = json.load(f)
+    
+    existing_records.extend(records)
+    
+    with open(record_file_path, 'w') as f:
+        json.dump(existing_records, f)
 
 
 if __name__ == "__main__":
-    type_str_to_initializer = {"int": __free_int__, "str": __free_str__, "list[str]": lambda: __free_list__(__free_str__), "list[int]": lambda: __free_list__(__free_int__)}
+    type_str_to_randomizer = {"int": __free_int__, "str": __free_str__, "list[str]": lambda: __free_list__(__free_str__), "list[int]": lambda: __free_list__(__free_int__)}
     program =   "\n".join(["from std import __invariant__", "x = y = 0",
                 "while y < n:",
                 "   __invariant__(True, x, y, n, k, d)",
                 "   x += 2",
                 "   y += 1"])
     # exec(program)
-    var_to_initializer_text = "\n".join(["n : int",
+    var_to_type_text = "\n".join(["n : int",
                 "k : str",
                 "d: list[int]"])
 
     print(f"program = {program}")
-    print(f"settings file = {var_to_initializer_text}")
-    var_to_initializer = dict(__get_var_and_initializer(line, type_str_to_initializer) for line in var_to_initializer_text.splitlines())
-    print(generate_examples(program, var_to_initializer))
+    print(f"settings file = {var_to_type_text}")
+    var_to_randomizer = dict(__get_var_and_randomizer(line, type_str_to_randomizer) for line in var_to_type_text.splitlines())
+    print(generate_examples(program, var_to_randomizer))
 
 # if __name__ == "__main__":
 #     seed()

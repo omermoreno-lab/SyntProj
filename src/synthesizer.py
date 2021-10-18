@@ -5,6 +5,7 @@ import functools
 from itertools import chain
 # from typing_extensions import IntVar
 import prog
+import json
 EXPECTED_RES_VAR = "expected_res" 
 
 # class InvariantConjecture(object):
@@ -134,12 +135,20 @@ class Synthesizer(object):
         return Synthesizer(tokens, prod_rules, states)
 
     @staticmethod
-    def from_files(grammar_file, state_file):
-        with open(grammar_file, 'r') as f:
-            grammar_list = f.readlines()
-        with open(state_file, 'r') as f:
-            state_list = f.readlines()
+    def from_files(grammar_file_path, states_file_path, env_setting_file_path):
+        with open(grammar_file_path, 'r') as f:
+            grammar_list = f.read().split("\n")
+        with open(states_file_path, 'r') as f:
+            state_list = json.load(f)
+        with open(env_setting_file_path, 'r') as f:
+            vars = list(json.load(f).keys())
+        vars.insert(0, EXPECTED_RES_VAR)
+        state_list.insert(0, vars)
         return Synthesizer.from_text(grammar_list, state_list)
+
+    @staticmethod
+    def from_folder(folder_path):
+        return Synthesizer.from_files(f"{folder_path}/grammar.txt", f"{folder_path}/records.json", f"{folder_path}/env.json")
 
     @staticmethod
     def __ground(s):
@@ -230,7 +239,7 @@ class Synthesizer(object):
                 
             new_programs = list(chain(tail_new, curr_new, all_new))
             old_programs = [oe1 + oe2 for oe2 in tail_oe for oe1 in token_oe]
-            print(f"new examples: {new_programs}")
+            # print(f"new examples: {new_programs}")
             return new_programs, old_programs
 
         
@@ -242,7 +251,8 @@ class Synthesizer(object):
                 return
             new_examples[t] = flatten([(get_new_pr_examples(pr, new_examples)[0]) for pr in self.prod_rules[t] if is_expandable(pr)])
             if t == 'S':
-                print(f"new S examples: {new_examples[t]}")
+                print
+                # print(f"new S examples: {new_examples[t]}")
             # new_examples[t] = flatten([(make_unique(get_new_pr_examples(pr, new_examples)[0])) for pr in self.prod_rules[t] if is_expandable(pr)])
 
         def is_unique(example, other_examples):
@@ -253,14 +263,13 @@ class Synthesizer(object):
         for token in self.__generation_order:
             grow_token(token, new_examples)
         unique_examples = {t: {ne for ne in new_examples[t] if is_unique(ne, self.examples[t])} for t in new_examples}
-        print(f"unique_examples: {unique_examples}")
+        # print(f"unique_examples: {unique_examples}")
         # print(f"current examples: {self.examples}")
         self.prev_new_examples = unique_examples
         for t in unique_examples:
             # print(f"t = {t}")
             self.examples[t] = self.examples[t].union(unique_examples[t])
-        print(f"S examples: {self.examples['S']}")
-
+        # print(f"S examples: {self.examples['S']}")
 
     @staticmethod
     def __dfs_sort(prod_rules):
@@ -433,7 +442,7 @@ class Synthesizer(object):
         for i in range(max_depth):
             self.__grow_merge()
         
-        print(f"all S programs: {self.examples['S']}")
+        # print(f"all S programs: {self.examples['S']}")
         for program in self.examples['S']:
             if satisfies_all(program, self.states):
                 # print(f"program returned: {program}")
