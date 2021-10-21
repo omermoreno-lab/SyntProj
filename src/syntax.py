@@ -9,6 +9,7 @@ from lib.parsing.earley.earley import Grammar, Parser, ParseTrees
 from lib.parsing.silly import SillyLexer
 import operator
 import z3
+
 import unittest
 
 OP = {'+': operator.add, '-': operator.sub,
@@ -182,8 +183,8 @@ class PyExprParser(object):
              r"(?P<lbracket>\[) (?P<rbracket>\]) (?P<assign>=) (?P<comma>,)".split()
     GRAMMAR = r"""
         E   ->   E0  |  lparen E rparen  |  E0 op E  |  E or E  |  E and E  |  not E
-        E0 -> id | num | bool | string | FUNC_CALL | LAMBDA | LIST | LIST_MEMBER
-        LIST_MEMBER -> id lbracket E rbracket
+        E0 -> id | num | bool | string | FUNC_CALL | LAMBDA | LIST | ITERABLE_MEMBER
+        ITERABLE_MEMBER -> id lbracket E rbracket
         FUNC_CALL -> id lparen LIST_CONT rparen
         LAMBDA -> lambda id colon E
         LIST -> lbracket LIST_CONT rbracket
@@ -204,7 +205,7 @@ class PyExprParser(object):
     @staticmethod
     def generate_list():
         PyExprParser.list_count += 1
-        return f"lambda_{PyExprParser.list_count - 1}"
+        return f"list_{PyExprParser.list_count - 1}"
 
     def __init__(self, var_to_z3):
         self.tokenizer = SillyLexer(self.TOKENS)
@@ -251,7 +252,7 @@ class PyExprParser(object):
                 raise ValueError("provided E with an invalid number of subtrees")
         elif t.root == "E0":
             return self.postprocess(t.subtrees[0], constraints)
-        # bool | string | FUNC_CALL | LAMBDA | LIST | LIST_MEMBER
+        # bool | string | FUNC_CALL | LAMBDA | LIST | ITERABLE_MEMBER
         elif t.root == "id":
             return self.var_to_z3[t.subtrees[0].root]
         elif t.root == "num":
@@ -260,7 +261,11 @@ class PyExprParser(object):
             return bool(t.subtrees[0].root)
         elif t.root == "string":
             return t.subtrees[0].root
-        
+        elif t.root == "ITERABLE_MEMBER":
+            typed_id = self.postprocess(t.subtrees[0], constraints)
+            idx = self.postprocess(t.subtrees[2], constraints)
+            return typed_id[idx]
+        # TODO: add support for functions such as substring, len etc.
         raise PostProcessError(t)
 
         # elif t.root == "FUNC_CALL":
@@ -280,6 +285,7 @@ class PyExprParser(object):
         #     # currently supporting only lists of ints
         #     l_name = PyExprParser.generate_list()
 
+
 def prove(f):
     s = Solver()
     s.add(Not(f))
@@ -287,6 +293,7 @@ def prove(f):
         return True, None
     else:
         return False, s.model()
+
 
 def run_test(tester, cond, vars, expected):
     parser = PyExprParser(vars)
@@ -298,6 +305,7 @@ def run_test(tester, cond, vars, expected):
     
     check = And(Implies(res, expected), Implies(expected,res))
     tester.assertTrue(prove(check)[0])
+
 
 class TestPyExprParser(unittest.TestCase):
     
@@ -324,7 +332,8 @@ class TestPyExprParser(unittest.TestCase):
         cond = "x <= y or not y >= -1025"
         expected = Or(vars["x"] <= vars["y"], Not(vars["y"] >= -1025))
         run_test(self, cond, vars, expected)
-    
+
+
 if __name__ == '__main__':
     unittest.main()
 

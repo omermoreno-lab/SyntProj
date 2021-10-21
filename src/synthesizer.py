@@ -250,7 +250,7 @@ class Synthesizer(object):
             all_new = ((ne1 + ne2) for ne2 in tail_ne for ne1 in token_ne)	            # new examples from both
                 
             new_programs = list(chain(tail_new, curr_new, all_new))
-            old_programs = [oe1 + oe2 for oe2 in tail_oe for oe1 in token_oe]
+            old_programs = [oe1 + oe2 for oe2 in tail_oe for oe1 in token_oe]       # TODO: This is expensive, might not want to do this that way
             # print(f"new examples: {new_programs}")
             return new_programs, old_programs
 
