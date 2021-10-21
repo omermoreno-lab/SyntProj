@@ -83,18 +83,19 @@ def generate_examples_from_files(program_path: str, env_setting_path: str):
     return generate_examples(program, var_to_randomizer)
 
 
-def write_recorded_states_file(record_file_path: str, records = std.get_recorded_states()):
+def write_recorded_states_file(record_file_path: str, vars: list[str], records = std.get_recorded_states()):
     if len(records) == 0:
         raise ValueError("States undefined, ignoring request")
     with open(record_file_path, 'w') as f:
-        json.dump(records, f)
+        json.dump([vars] + records, f)
 
 
 def extend_recorded_states_file(record_file_path: str, records = None):
     if not records:      # the ususal case, getting the invariants from the function
         records = std.get_recorded_states()
     elif len(records) == 0:
-        raise ValueError("States undefined, ignoring request")
+        # raise ValueError("States undefined, ignoring request")
+        return
 
     with open(record_file_path, 'r') as f:
         existing_records = json.load(f)
@@ -119,8 +120,8 @@ if __name__ == "__main__":
 
     print(f"program = {program}")
     print(f"settings file = {var_to_type_text}")
-    var_to_randomizer = dict(__get_var_and_randomizer(line, type_str_to_randomizer) for line in var_to_type_text.splitlines())
-    print(generate_examples(program, var_to_randomizer))
+    # var_to_randomizer = dict(__get_var_and_randomizer(line, type_str_to_randomizer) for line in var_to_type_text.splitlines())
+    # print(generate_examples(program, var_to_randomizer))
 
 # if __name__ == "__main__":
 #     seed()
