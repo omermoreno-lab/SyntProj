@@ -1,0 +1,6 @@
+S ::= ( S LOGOP S ) | ( VAR RELOP VAR ) | ( VAR RELOP VAL )
+LOGOP ::= and | or
+NUMOP ::= + | - | * | **
+VAL ::= 1 | (1 NUMOP VAL)
+VAR ::= x | y | n
+RELOP ::= == | != | < | <=
