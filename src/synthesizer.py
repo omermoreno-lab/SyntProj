@@ -1,7 +1,7 @@
 # from lib.adt.tree import Visitor
 import time
 import typing
-import functools
+# import functools
 from itertools import chain
 # from typing_extensions import IntVar
 import prog
@@ -135,20 +135,21 @@ class Synthesizer(object):
         return Synthesizer(tokens, prod_rules, states)
 
     @staticmethod
-    def from_files(grammar_file_path, states_file_path, env_setting_file_path):
+    def from_files(grammar_file_path, states_file_path):
         with open(grammar_file_path, 'r') as f:
             grammar_list = f.read().split("\n")
         with open(states_file_path, 'r') as f:
             state_list = json.load(f)
-        with open(env_setting_file_path, 'r') as f:
-            vars = list(json.load(f).keys())
-        vars.insert(0, EXPECTED_RES_VAR)
-        state_list.insert(0, vars)
+        # with open(env_setting_file_path, 'r') as f:
+        #     vars = list(json.load(f).keys())
+        # vars.insert(0, EXPECTED_RES_VAR)
+        # state_list.insert(0, vars)
+        state_list[0][0] = EXPECTED_RES_VAR
         return Synthesizer.from_text(grammar_list, state_list)
 
     @staticmethod
     def from_folder(folder_path):
-        return Synthesizer.from_files(f"{folder_path}/grammar.txt", f"{folder_path}/records.json", f"{folder_path}/env.json")
+        return Synthesizer.from_files(f"{folder_path}/grammar.txt", f"{folder_path}/records.json")
 
     @staticmethod
     def __ground(s):
@@ -189,15 +190,26 @@ class Synthesizer(object):
         # return {t: _grow_var(t) for t in self.tokens}
         self.examples |= {t: grow_var(t) for t in self.non_terminals}
 
+    @staticmethod
+    def debug_and_eval(program, state):
+        description = [f"{var} = {state[var]}" for var in "xynkd"]
+        print(f"current state is: {description}")
+        return eval(program, state)
+
     def get_program_results(self, program):
         if program in self.program_result:
             return self.program_result[program]
         else:
-            program_evaluation = [eval(program, state) for state in self.states]
+            # debug_strings = ["%s type: {type(%s)}" %(var, var) for var in "xynkd"]
+            # debug_lines = ['print(f"' + s + '")' for s in debug_strings]
+            # debug_program = "\n".join(debug_lines)
+            # print(f"evaluating program: {program}")
+            # exec()
+            program_evaluation = [Synthesizer.debug_and_eval(program, state) for state in self.states]
             self.program_result[program] = program_evaluation
             return program_evaluation 
 
-    def __grow_merge(self):
+    def __grow_merge(self, merge_all_flag):
         """
         This is my try to make an efficient grow function,
         I would like to apply two techniques:
@@ -251,7 +263,7 @@ class Synthesizer(object):
                 return
             new_examples[t] = flatten([(get_new_pr_examples(pr, new_examples)[0]) for pr in self.prod_rules[t] if is_expandable(pr)])
             if t == 'S':
-                print
+                pass
                 # print(f"new S examples: {new_examples[t]}")
             # new_examples[t] = flatten([(make_unique(get_new_pr_examples(pr, new_examples)[0])) for pr in self.prod_rules[t] if is_expandable(pr)])
 
@@ -262,15 +274,22 @@ class Synthesizer(object):
         new_examples = {}
         for token in self.__generation_order:
             grow_token(token, new_examples)
-        unique_examples = {t: {ne for ne in new_examples[t] if is_unique(ne, self.examples[t])} for t in new_examples}
-        # print(f"unique_examples: {unique_examples}")
-        # print(f"current examples: {self.examples}")
-        self.prev_new_examples = unique_examples
-        for t in unique_examples:
-            # print(f"t = {t}")
-            self.examples[t] = self.examples[t].union(unique_examples[t])
-        # print(f"S examples: {self.examples['S']}")
-
+        
+        if merge_all_flag:
+            unique_examples = {t: {ne for ne in new_examples[t] if is_unique(ne, self.examples[t])} for t in new_examples}
+            # print(f"unique_examples: {unique_examples}")
+            # print(f"current examples: {self.examples}")
+            self.prev_new_examples = unique_examples
+            for t in unique_examples:
+                # print(f"t = {t}")
+                self.examples[t] = self.examples[t].union(unique_examples[t])
+            # print(f"S examples: {self.examples['S']}")
+        else:
+            new_examples = {t: set(val) for t, val in new_examples.items()}
+            new_examples['S'] = {ne for ne in new_examples['S'] if is_unique(ne, self.examples['S'])}
+            for t in new_examples:
+                # print(f"t = {t}")
+                self.examples[t] = self.examples[t].union(new_examples[t])
     @staticmethod
     def __dfs_sort(prod_rules):
         def __sort_inner(token, visited = None, order = None):
@@ -292,7 +311,7 @@ class Synthesizer(object):
             order.append(token)
             return order
         return __sort_inner("S")
-            
+
     def __evaluate_once(f):
         def wrapper(*args, **kwargs):
             if not wrapper.has_run:
@@ -308,11 +327,11 @@ class Synthesizer(object):
         returns the non terminals that have no fixed size
         """
         def expanders_inner(token, visited = None, route = None, expanders = None):
-            if visited == None:
+            if visited is None:
                 visited = set()
-            if route == None:
+            if route is None:
                 route = []
-            if expanders == None:
+            if expanders is None:
                 expanders = []
             if token in visited:
                 if token in route or token in expanders:
@@ -415,7 +434,7 @@ class Synthesizer(object):
             if satisfies_all(program, self.states):
                 yield program
 
-    def bottom_up_optimized(self, max_depth=4):
+    def bottom_up_optimized(self, max_depth, merge_all_flag):
         def satisfies(cond, state: dict) -> bool:
             res = eval(cond, state) 
             assert(isinstance(res, bool))
@@ -440,13 +459,14 @@ class Synthesizer(object):
                 self.prev_new_examples[t] = self.examples[t].copy()
 
         for i in range(max_depth):
-            self.__grow_merge()
+            self.__grow_merge(merge_all_flag)
         
         # print(f"all S programs: {self.examples['S']}")
         for program in self.examples['S']:
             if satisfies_all(program, self.states):
                 # print(f"program returned: {program}")
                 yield program
+
 
 if __name__ == "__main__":
     start = time.time()
