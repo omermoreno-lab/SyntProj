@@ -1,4 +1,4 @@
-import z3
+# import z3
 from z3 import *
 import syntax
 import json
@@ -109,7 +109,7 @@ def var_to_z3_from_config(config_file: str):
 
     with open(config_file, 'r') as f:
         env_dict = json.load(f)
-        return {var: safe_conversion(var_t) for var, var_t in env_dict.items()}
+        return {var: safe_conversion(var_t)(var) for var, var_t in env_dict.items()}
 
 
 def str_to_z3(expr: str, var_to_z3: dict):
