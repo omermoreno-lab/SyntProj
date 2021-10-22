@@ -95,6 +95,7 @@ def __get_args():
 def get_invariants_by_tactic(synth: Synthesizer, tactic, max_depth: int, merge_all_flag: bool):
     if tactic == "simple":
         return synth.bottom_up_optimized(max_depth, merge_all_flag)
+        # return synth.bottom_up_enumeration(4)
     elif tactic == "cond-extraction":
         pass
     else:

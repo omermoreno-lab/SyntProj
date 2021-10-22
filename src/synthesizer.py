@@ -8,61 +8,10 @@ import prog
 import json
 EXPECTED_RES_VAR = "expected_res" 
 
-# class InvariantConjecture(object):
-#     def __init__(self, val: str):
-#         self.val = val
-
-#     def __hash__(self):
-#         return hash(self.val)
-
-#     def __eq__(self, other):
-#         return self.val == other.val if other is InvariantConjecture else False
-    
-#     """
-#     checks if the state satisfies the invariant
-#     this function also takes into consideration if the state is True or False
-#     """
-#     def satisfies(self, state: dict) -> bool:
-#         res = eval(self.val, state) 
-#         assert(isinstance(res, bool))
-#         res = res if state[EXPECTED_RES_VAR] else not res
-#         return res
-
-
-
-
-# class Enumerator(object):
-#     states : list[dict]      # a list of all states, as dictionaries of var->val
-
-#     def __init__(self, states: list):
-#         vars = states[0][:]
-#         vars[0] = EXPECTED_RES_VAR
-#         self.states = [dict(zip(vars, state)) for state in states]
-
-# def satisfies(invariant, state: dict) -> bool:
-#     res = eval(invariant, state) 
-#     assert(isinstance(res, bool))
-#     return res
-
-
-# def are_observational_equivalent(ic1, ic2, states):
-#     return all(ic1.satisfies(s) == ic2.satisfies(s) for s in states)
-
 
 def flatten(t):
     return [item for sublist in t for item in sublist]
 
-# def parse_grammar(g):
-#     rules = dict()
-#     tokens = {}
-#     for rule in g:
-#         rule_split = rule.split(" ::= ")
-#         assert len(rule_split) == 2
-#         rule_type = rule_split[0]
-#         rule_body = rule_split[1]
-#         rule_body = rule_body.split(" | ")
-#         rules[rule_type] = rule_body
-#     return rules
 
 """
 a class used for comfortability only, in case eval() does not return a result and one still wants to insert it into the results list
@@ -156,70 +105,64 @@ class Synthesizer(object):
             # return s.isalnum() and not s.isupper()
             return not s.isupper()
 
-    # def grow_advanced(self):
-    #     # NOTICE: I think this funciton might be wrong but I forgot why, probably want to review the code before using
-    #     def _grow(token, visited):
-    #         if token in visited or token not in self.non_terminals:
-    #             return self.examples[token]
-    #         visited.append(token)
-    #         self.examples[token] = ["".join([self.grow(t, visited) for t in pr]) for pr in self.prod_rules[token]]      # gets all the examples currenlty available for this token
-    #         return self.examples[token]
-    #     visited = []
-    #     for nt in self.non_terminals:
-    #         _grow(self, nt, visited)
-    #     return
-    
-    def __grow(self):
-        # def _get_examples(token, made_examples):
-        #     return set((example.concat(token_example) for token_example
-        #                 in self.examples[token] for example in made_examples))
+    def __merge(self):
+        def safe_evaluate(program, state):
+            try:
+                return eval(program, state)
+            except:
+                return NoEqual()
 
-        # # TODO: Need to take a look at this function
-        # def _grow_var(token):
-        #     return functools.reduce(_get_examples, self.prod_rules[token]) \
-        #         if token in self.non_terminals else self.examples[token]
+        def equal_results(res1, res2):
+            return all((r1 == r2 for r1,r2 in zip(res1, res2)))
+
+        def get_equal_examples(token_examples, program_equality_dict):
+            return set((program_equality_dict[e] for e in token_examples))
+
+        programs = set(flatten(self.examples.values()))
+        results = {program: [safe_evaluate(program, state) for state in self.states] for program in programs}
+        program_equality_dict = {p: p for p in programs}
+        program_keys = list(results.keys())
+        for i, p1 in enumerate(program_keys):
+            for p2 in program_keys[i+1:]:
+                if equal_results(results[p1], results[p2]):
+                    print(f"merged {p1} and {p2}")
+                    program_equality_dict[p2] = p1
         
-        def grow_var(t):
-            def grow_production_rule(pr):
-                first_token_examples = self.examples[pr[0]]
-                if len(pr) == 1:
-                    return first_token_examples
-                return set((e + pr_tail_example for e in first_token_examples for pr_tail_example in grow_production_rule(pr[1:])))
-            # return flatten(map(grow_production_rule(pr) for pr in self.examples[t]))
-            return flatten((grow_production_rule(pr) for pr in self.prod_rules[t]))
-        # return {t: _grow_var(t) for t in self.tokens}
-        self.examples |= {t: grow_var(t) for t in self.non_terminals}
+        new_examples = {p: get_equal_examples(self.examples[p], program_equality_dict) for p in self.examples}
+        self.examples = new_examples
+    
+    def bottom_up_enumeration(self, max_depth=4):
+        def satisfies(cond, state: dict) -> bool:
+            res = eval(cond, state) 
+            assert(isinstance(res, bool))
+            res = res if state[EXPECTED_RES_VAR] else not res
+            return res
 
-    # @staticmethod
-    # def debug_and_eval(program, state):
-    #     description = [f"{var} = {state[var]}" for var in "xynkd"]
-    #     print(f"current state is: {description}")
-    #     return eval(program, state)
+        def satisfies_all(cond, states):
+            return all((satisfies(cond, s) for s in states))
+
+        for i in range(max_depth):
+            self.__grow()
+            self.__merge()
+            for program in self.examples["S"]:
+                if satisfies_all(program, self.states):
+                    yield program
+
 
     def get_program_results(self, program):
         if program in self.program_result:
             return self.program_result[program]
-        else:
-            # debug_strings = ["%s type: {type(%s)}" %(var, var) for var in "xynkd"]
-            # debug_lines = ['print(f"' + s + '")' for s in debug_strings]
-            # debug_program = "\n".join(debug_lines)
-            # print(f"evaluating program: {program}")
-            # exec()
-            program_evaluation = [eval(program, state) for state in self.states]
-            self.program_result[program] = program_evaluation
-            return program_evaluation 
+        program_evaluation = [eval(program, state) for state in self.states]
+        self.program_result[program] = program_evaluation
+        return program_evaluation
 
     def __grow_merge(self, merge_all_flag):
         """
-        This is my try to make an efficient grow function,
-        I would like to apply two techniques:
+        This is our try to make an efficient grow function,
+        We would like to apply two techniques:
         1. Equivalent invariant elimination during synthesis
         2. ordered synthesis, where one can count only on new examples for the synthesis, and use the previuos examples where necessary
         """
-
-        # THIS MIGHT NOT BE THE BEST OPTION TO DO THIS, DUE TO EFFICIENCY REASONS,
-        # another option is to build all the possible expressions with the expandable tokens in them and then use replace
-        
         # def make_unique(examples_iterable):
         #     unique_list = []
         #     for idx, e in enumerate(examples_iterable):
@@ -228,45 +171,34 @@ class Synthesizer(object):
         #     return unique_list
         
         def get_new_pr_examples(pr, new_examples):          # pr stands for production rule
+            if len(pr) == 0:
+                raise ValueError("tried expanding empty production rule")
             first_token = pr[0]
             if len(pr) == 1:
                 return new_examples[first_token] if first_token in new_examples else [], \
                    self.examples[first_token]
-                    # self.prev_new_examples[first_token] if first_token in self.prev_new_examples else []      # TODO: This looks probably like the right option but ok
-                    
-                # return self.prev_new_examples[first_token] if first_token in self.prev_new_examples else [], \
-                #     self.examples[first_token]
-
+            
             tail_ne, tail_oe = get_new_pr_examples(pr[1:], new_examples)     # new examples and old examples
             token_ne = self.prev_new_examples[first_token] if first_token in self.prev_new_examples else []
-            # token_oe = self.examples[first_token] if first_token not in self.__get_exapndable_tokens() else self.prev_new_examples[first_token] # This might be the source of the problem
             token_oe = self.examples[first_token]
 
-            # token_new_examples = (new_examples[curr_token] if curr_token in new_examples else []) \
-            #     if  curr_token in self.non_terminals else self.examples[curr_token]
-
-            tail_new = ((oe + ne) for ne in tail_ne for oe in token_oe)		# new examlpes from tail
+            tail_new = ((oe + ne) for ne in tail_ne for oe in token_oe)		            # new examlpes from tail
             curr_new = ((ne + oe) for oe in tail_oe for ne in token_ne)		            # new examples from current token
             all_new = ((ne1 + ne2) for ne2 in tail_ne for ne1 in token_ne)	            # new examples from both
                 
             new_programs = list(chain(tail_new, curr_new, all_new))
             old_programs = [oe1 + oe2 for oe2 in tail_oe for oe1 in token_oe]       # TODO: This is expensive, might not want to do this that way
-            # print(f"new examples: {new_programs}")
             return new_programs, old_programs
 
-        
         def is_expandable(pr):
             return any(t in self.__get_exapndable_tokens() for t in pr)
 
         def grow_token(t, new_examples):
             if t not in self.__get_exapndable_tokens():
                 return
-            print(f"expandable token {t}")
             new_examples[t] = flatten([(get_new_pr_examples(pr, new_examples)[0]) for pr in self.prod_rules[t] if is_expandable(pr)])
-            if t == 'S':
-                pass
-                # print(f"new S examples: {new_examples[t]}")
-            # new_examples[t] = flatten([(make_unique(get_new_pr_examples(pr, new_examples)[0])) for pr in self.prod_rules[t] if is_expandable(pr)])
+            
+        # def merge_token_new_examples(token, new_examples, )
 
         def is_unique(example, other_examples):
             # print(f"example: {example}, other_examples: {other_examples}")
@@ -275,6 +207,7 @@ class Synthesizer(object):
         new_examples = {}
         for token in self.__generation_order:
             grow_token(token, new_examples)
+            # TODO: implement merge_token function that will merge expandable token's examples after generation
         
         if merge_all_flag:
             unique_examples = {t: {ne for ne in new_examples[t] if is_unique(ne, self.examples[t])} for t in new_examples}
@@ -291,6 +224,7 @@ class Synthesizer(object):
             for t in new_examples:
                 # print(f"t = {t}")
                 self.examples[t] = self.examples[t].union(new_examples[t])
+    
     @staticmethod
     def __dfs_sort(prod_rules):
         def __sort_inner(token, visited = None, order = None):
@@ -388,52 +322,7 @@ class Synthesizer(object):
         
     #     self.examples["S"] = int_to_example.values[:]
     
-    def __merge(self):
-        def safe_evaluate(program, state):
-            try:
-                return eval(program, state)
-            except:
-                return NoEqual()
-
-        def equal_results(res1, res2):
-            return all((r1 == r2 for r1,r2 in zip(res1, res2)))
-
-        def get_equal_examples(token_examples, program_equality_dict):
-            return set((program_equality_dict[e] for e in token_examples))
-
-        programs = set(flatten(self.examples.values()))
-        results = {program: [safe_evaluate(program, state) for state in self.states] for program in programs}
-        program_equality_dict = {p: p for p in programs}
-        program_keys = list(results.keys())
-        for i, p1 in enumerate(program_keys):
-            for p2 in program_keys[i+1:]:
-                # test
-                # if p1 == "((x==x)or(y!=y))" and p2 == "((y!=y)or(x==x))":
-                #     print("did not merge right... This is problematic")
-                # end of test
-                if equal_results(results[p1], results[p2]):
-                    print(f"merged {p1} and {p2}")
-                    program_equality_dict[p2] = p1
-        
-        new_examples = {p: get_equal_examples(self.examples[p], program_equality_dict) for p in self.examples}
-        self.examples = new_examples
     
-    def bottom_up_enumeration(self, max_depth=4):
-        def satisfies(cond, state: dict) -> bool:
-            res = eval(cond, state) 
-            assert(isinstance(res, bool))
-            res = res if state[EXPECTED_RES_VAR] else not res
-            return res
-
-        def satisfies_all(cond, states):
-            return all((satisfies(cond, s) for s in states))
-
-        for i in range(max_depth):
-            self.__grow()
-            self.__merge()
-        for program in self.examples["S"]:
-            if satisfies_all(program, self.states):
-                yield program
 
     def bottom_up_optimized(self, max_depth, merge_all_flag):
         def satisfies(cond, state: dict) -> bool:
@@ -451,39 +340,45 @@ class Synthesizer(object):
             if len(pr) == 1:
                 return self.examples[pr[0]]
             return [e1 + e2 for e1 in self.examples[pr[0]] for e2 in grow_pr(pr[1:])]
+        
 
-        for t in self.__generation_order:
+        for t in self.__generation_order:       # depth 1 exception
             if t in self.non_terminals:
                 self.examples[t] = set(flatten([grow_pr(pr) for pr in self.prod_rules[t]]))
                 # TODO: problem is in the line below, the rules for S after that rule are double boolops
                 # self.prev_new_examples[t] = set(flatten([grow_pr(pr) for pr in self.prod_rules[t]]))
                 self.prev_new_examples[t] = self.examples[t].copy()
-
-        for i in range(max_depth-1):
             
-            for program in self.prev_new_examples['S']:
-                if satisfies_all(program, self.states):
-                    # print(f"program returned: {program}")
-                    yield program
-            print(f"starting depth: {i+2}")
-            self.__grow_merge(merge_all_flag)
-        
-        print(f"all S programs: {self.examples['S']}")
         for program in self.prev_new_examples['S']:
             if satisfies_all(program, self.states):
                 # print(f"program returned: {program}")
                 yield program
-        
 
-        # for i in range(max_depth):
+        for i in range(1, max_depth):
+            print(f"starting depth: {i+1}")
+            self.__grow_merge(merge_all_flag)
+            for program in self.prev_new_examples['S']:
+                if satisfies_all(program, self.states):
+                    # print(f"program returned: {program}")
+                    yield program
+
+        # for i in range(max_depth-1):
+            
+        #     for program in self.prev_new_examples['S']:
+        #         if satisfies_all(program, self.states):
+        #             # print(f"program returned: {program}")
+        #             yield program
         #     print(f"starting depth: {i+2}")
         #     self.__grow_merge(merge_all_flag)
         
         # print(f"all S programs: {self.examples['S']}")
-        # for program in self.examples['S']:
+        # for program in self.prev_new_examples['S']:
         #     if satisfies_all(program, self.states):
         #         # print(f"program returned: {program}")
         #         yield program
+        
+
+        
 
 
 if __name__ == "__main__":
