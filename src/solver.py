@@ -141,6 +141,8 @@ def prove_properties(invariants_iter, properties: list):
     prev_unproven = properties[:]
 
     for inv in invariants_iter:
+        print(f"current invariant: {inv}")
+        print(f"properties to prove: {properties}")
         unproven = []
         for p in prev_unproven:
             res = prove(Implies(inv, p))

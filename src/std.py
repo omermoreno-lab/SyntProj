@@ -39,7 +39,7 @@ def __invariant__(*args):
     __INVARIANTS.append(list(args))
 
 
-def __list_reverse__(l):
+def __str_reverse__(l):
     l = l[:]
     l.reverse()
     return l
@@ -56,7 +56,9 @@ def __list_pop__(l):
     l.pop()
     return l
 
-
+def __str_reverse__(s: str):
+    s = s[::-1]
+    return s
 # def test():
 #     __invariant__(1, "hello", 5.364)
 #     __invariant__(2)

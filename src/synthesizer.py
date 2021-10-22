@@ -190,11 +190,11 @@ class Synthesizer(object):
         # return {t: _grow_var(t) for t in self.tokens}
         self.examples |= {t: grow_var(t) for t in self.non_terminals}
 
-    @staticmethod
-    def debug_and_eval(program, state):
-        description = [f"{var} = {state[var]}" for var in "xynkd"]
-        print(f"current state is: {description}")
-        return eval(program, state)
+    # @staticmethod
+    # def debug_and_eval(program, state):
+    #     description = [f"{var} = {state[var]}" for var in "xynkd"]
+    #     print(f"current state is: {description}")
+    #     return eval(program, state)
 
     def get_program_results(self, program):
         if program in self.program_result:
@@ -205,7 +205,7 @@ class Synthesizer(object):
             # debug_program = "\n".join(debug_lines)
             # print(f"evaluating program: {program}")
             # exec()
-            program_evaluation = [Synthesizer.debug_and_eval(program, state) for state in self.states]
+            program_evaluation = [eval(program, state) for state in self.states]
             self.program_result[program] = program_evaluation
             return program_evaluation 
 
@@ -261,6 +261,7 @@ class Synthesizer(object):
         def grow_token(t, new_examples):
             if t not in self.__get_exapndable_tokens():
                 return
+            print(f"expandable token {t}")
             new_examples[t] = flatten([(get_new_pr_examples(pr, new_examples)[0]) for pr in self.prod_rules[t] if is_expandable(pr)])
             if t == 'S':
                 pass
@@ -458,14 +459,31 @@ class Synthesizer(object):
                 # self.prev_new_examples[t] = set(flatten([grow_pr(pr) for pr in self.prod_rules[t]]))
                 self.prev_new_examples[t] = self.examples[t].copy()
 
-        for i in range(max_depth):
+        for i in range(max_depth-1):
+            
+            for program in self.prev_new_examples['S']:
+                if satisfies_all(program, self.states):
+                    # print(f"program returned: {program}")
+                    yield program
+            print(f"starting depth: {i+2}")
             self.__grow_merge(merge_all_flag)
         
-        # print(f"all S programs: {self.examples['S']}")
-        for program in self.examples['S']:
+        print(f"all S programs: {self.examples['S']}")
+        for program in self.prev_new_examples['S']:
             if satisfies_all(program, self.states):
                 # print(f"program returned: {program}")
                 yield program
+        
+
+        # for i in range(max_depth):
+        #     print(f"starting depth: {i+2}")
+        #     self.__grow_merge(merge_all_flag)
+        
+        # print(f"all S programs: {self.examples['S']}")
+        # for program in self.examples['S']:
+        #     if satisfies_all(program, self.states):
+        #         # print(f"program returned: {program}")
+        #         yield program
 
 
 if __name__ == "__main__":

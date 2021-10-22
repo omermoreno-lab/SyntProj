@@ -16,8 +16,8 @@ OP = {'+': operator.add, '-': operator.sub,
       '*': operator.mul, '/': operator.floordiv,
       '!=': operator.ne, '>': operator.gt, '<': operator.lt,
       '<=': operator.le, '>=': operator.ge, '=': operator.eq,
-      "==": operator.eq, "and": And, "or": Or, "not": Not}
-
+      "==": operator.eq, "and": And, "or": Or, "not": Not, "in": Contains}
+SUPPORTED_FUNCTIONS = {"len": z3.Length}
 # I currently dithced this part, maybe later
 # class SimplePyParser(object):
 
@@ -182,7 +182,7 @@ class PyExprParser(object):
              r"(?P<lparen>\() (?P<rparen>\)) (?P<lbrace>\{) (?P<rbrace>\}) (?P<colon>:) " \
              r"(?P<lbracket>\[) (?P<rbracket>\]) (?P<assign>=) (?P<comma>,)".split()
     GRAMMAR = r"""
-        E   ->   E0  |  lparen E rparen  |  E0 op E  |  E or E  |  E and E  |  not E
+        E   ->   E0  |  lparen E rparen  |  E0 op E  |  E or E  |  E and E  |  not E  |  E in E
         E0 -> id | num | bool | string | FUNC_CALL | LAMBDA | LIST | ITERABLE_MEMBER
         ITERABLE_MEMBER -> id lbracket E rbracket
         FUNC_CALL -> id lparen LIST_CONT rparen
@@ -229,6 +229,7 @@ class PyExprParser(object):
             return None
 
     def postprocess(self, t: Tree, constraints=None):
+        # TODO: change from if-else to dictionary-based matching
         if constraints is None:
             constraints = []
         if t.root == "γ":
@@ -247,6 +248,8 @@ class PyExprParser(object):
                     left_operand = self.postprocess(t.subtrees[0], constraints)
                     right_operand = self.postprocess(t.subtrees[2], constraints)
                     operation = OP[t.subtrees[1].subtrees[0].root] if t.subtrees[1].root == "op" else OP[t.subtrees[1].root]
+                    if operation == "in":
+                        left_operand, right_operand = right_operand, left_operand
                     return operation(left_operand, right_operand)
             else:
                 raise ValueError("provided E with an invalid number of subtrees")
@@ -265,7 +268,24 @@ class PyExprParser(object):
             typed_id = self.postprocess(t.subtrees[0], constraints)
             idx = self.postprocess(t.subtrees[2], constraints)
             return typed_id[idx]
-        # TODO: add support for functions such as substring, len etc.
+        elif t.root == "FUNC_CALL":
+            # id lparen LIST_CONT rparen
+            func_name = t.subtrees[0].subtrees[0].root
+            if func_name not in SUPPORTED_FUNCTIONS:
+                raise PostProcessError(t)
+            f = SUPPORTED_FUNCTIONS[func_name]
+            arguments = self.postprocess(t.subtrees[2])
+            return f(arguments)
+        elif t.root == "LIST_CONT":
+        #   LIST_CONT -> LIST_INTER | TERMINATOR
+        #   LIST_INTER -> E | E comma LIST_INTER
+            return self.postprocess(t.subtrees[0])
+        elif t.root == "TERMINATOR":
+            return []
+        elif t.root == "LIST_INTER":
+            curr = [self.postprocess(t.subtrees[0])]
+            tail = self.postprocess(t.subtrees[2]) if len(t.subtrees) == 3 else []
+            return curr + tail
         raise PostProcessError(t)
 
         # elif t.root == "FUNC_CALL":

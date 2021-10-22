@@ -82,11 +82,14 @@ def __get_args():
     parser.add_argument("tactic", type=str, choices=["simple", "cond-extraction", "logical-and-adder"], help="The tactic used by the synthesizer when producing the invariant")
     parser.add_argument("-d", "--dest", dest="dest", nargs=1, type=str, help="Choose the destination of the result file, default is <source>/res.json")
     parser.add_argument("-ge", "--generate-examples", dest="generate_examples", action="store_true", help="Generate examples randomly")
-    parser.add_argument("-md", "--max-depth", nargs=1, dest="max_depth", type=int, default=2, help="Set max depth for the synthesizer, default=2")
+    parser.add_argument("-md", "--max-depth", nargs=1, dest="max_depth", type=int, default=[2], help="Set max depth for the synthesizer, default=2")
     parser.add_argument("-ft", "--filter-tautologies", dest="filter_tau", action="store_true", help="Filter tautologies using the solver")
     parser.add_argument("-ma", "--merge-all", dest="merge_all_flag", action="store_true", help="Merge all subprograms, default is merge only root program")
 
     args = parser.parse_args()
+    args.max_depth = args.max_depth[0]
+    args.dest = args.dest[0] if args.dest else None
+    print(args)
     return args
 
 def get_invariants_by_tactic(synth: Synthesizer, tactic, max_depth: int, merge_all_flag: bool):

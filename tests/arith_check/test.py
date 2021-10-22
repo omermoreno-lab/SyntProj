@@ -1,5 +1,5 @@
 from std import __invariant__
-while x < y and y < n and n < k:
+while x < y and y < n:
     __invariant__(True, x, y, n, k)
     y = x * 4
     n = y ** 2
