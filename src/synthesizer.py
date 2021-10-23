@@ -34,6 +34,8 @@ class Synthesizer(object):
     tokens: list[str]
     prev_new_examples: dict		# TODO: add type hint here
     program_result: dict
+    encoding_to_example: dict
+    example_to_encoding: dict
 
     def __init__(self, tokens, prod_rules, states):
         self.tokens = tokens
@@ -45,6 +47,8 @@ class Synthesizer(object):
         self.__generation_order = Synthesizer.__dfs_sort(self.prod_rules)
         self.prev_new_examples = {t: {t} for t in self.terminals}
         self.program_result = {}
+        self.encoding_to_example = {}
+        self.example_to_encoding = {}
         print(f"Synth init:\n\
             tokens = {self.tokens}\n\
             terminals = {self.terminals}\n\
@@ -89,10 +93,6 @@ class Synthesizer(object):
             grammar_list = f.read().split("\n")
         with open(states_file_path, 'r') as f:
             state_list = json.load(f)
-        # with open(env_setting_file_path, 'r') as f:
-        #     vars = list(json.load(f).keys())
-        # vars.insert(0, EXPECTED_RES_VAR)
-        # state_list.insert(0, vars)
         state_list[0][0] = EXPECTED_RES_VAR
         return Synthesizer.from_text(grammar_list, state_list)
 
@@ -102,7 +102,6 @@ class Synthesizer(object):
 
     @staticmethod
     def __ground(s):
-            # return s.isalnum() and not s.isupper()
             return not s.isupper()
 
     def __merge(self):
@@ -156,6 +155,16 @@ class Synthesizer(object):
         self.program_result[program] = program_evaluation
         return program_evaluation
 
+    def get_results_encoding(self, program):
+        if program in self.example_to_encoding:
+            return self.example_to_encoding[program]
+
+        encoding = 0
+        assert(type(self.get_program_results(program)[0]) == bool)
+        for idx, flag in enumerate(reversed(self.get_program_results(program))):
+            encoding ^=  flag << idx
+        return encoding
+
     def __grow_merge(self, merge_all_flag):
         """
         This is our try to make an efficient grow function,
@@ -163,13 +172,6 @@ class Synthesizer(object):
         1. Equivalent invariant elimination during synthesis
         2. ordered synthesis, where one can count only on new examples for the synthesis, and use the previuos examples where necessary
         """
-        # def make_unique(examples_iterable):
-        #     unique_list = []
-        #     for idx, e in enumerate(examples_iterable):
-        #         if is_unique(e, examples_iterable[:idx]):
-        #             unique_list.append(e)
-        #     return unique_list
-        
         def get_new_pr_examples(pr, new_examples):          # pr stands for production rule
             if len(pr) == 0:
                 raise ValueError("tried expanding empty production rule")
@@ -182,10 +184,16 @@ class Synthesizer(object):
             token_ne = self.prev_new_examples[first_token] if first_token in self.prev_new_examples else []
             token_oe = self.examples[first_token]
 
-            tail_new = ((oe + ne) for ne in tail_ne for oe in token_oe)		            # new examlpes from tail
-            curr_new = ((ne + oe) for oe in tail_oe for ne in token_ne)		            # new examples from current token
-            all_new = ((ne1 + ne2) for ne2 in tail_ne for ne1 in token_ne)	            # new examples from both
-                
+            # This is the right way to do the generation if we were using generators
+            # tail_new = ((oe + ne) for ne in tail_ne for oe in token_oe)		            # new examlpes from tail
+            # curr_new = ((ne + oe) for oe in tail_oe for ne in token_ne)		            # new examples from current token
+            # all_new = ((ne1 + ne2) for ne2 in tail_ne for ne1 in token_ne)	            # new examples from both
+
+            # This is the order we do the generation to give preference to the first tokens in examples
+            tail_new = ((oe + ne) for oe in token_oe for ne in tail_ne)		            # new examlpes from tail
+            curr_new = ((ne + oe) for ne in token_ne for oe in tail_oe)		            # new examples from current token
+            all_new = ((ne1 + ne2) for ne1 in token_ne for ne2 in tail_ne)	            # new examples from both
+
             new_programs = list(chain(tail_new, curr_new, all_new))
             old_programs = [oe1 + oe2 for oe2 in tail_oe for oe1 in token_oe]       # TODO: This is expensive, might not want to do this that way
             return new_programs, old_programs
@@ -198,32 +206,50 @@ class Synthesizer(object):
                 return
             new_examples[t] = flatten([(get_new_pr_examples(pr, new_examples)[0]) for pr in self.prod_rules[t] if is_expandable(pr)])
             
-        # def merge_token_new_examples(token, new_examples, )
-
-        def is_unique(example, other_examples):
+        def is_unique_default(example, other_examples):
             # print(f"example: {example}, other_examples: {other_examples}")
             return all((any((res_e != res_oe for res_e, res_oe in zip(self.get_program_results(example), self.get_program_results(e)))) for e in other_examples))
 
+        def make_unique_default(examples_iterable):
+            unique_list = []
+            for idx, e in enumerate(examples_iterable):
+                if is_unique_default(e, examples_iterable[:idx]):
+                    unique_list.append(e)
+            unique_in_all_examples = [e for e in unique_list if is_unique_default(e, self.examples[token])]
+            return unique_in_all_examples
+
+        def make_unique_bool(examples_iterable):
+            unique_dict = {}
+            for e in examples_iterable:
+                if self.get_results_encoding(e) not in unique_dict:
+                    unique_dict[self.get_results_encoding(e)] = e
+            return [example for encoding, example in unique_dict.items() if encoding not in self.encoding_to_example] 
+            
+        # the optimization can potentially work for every boolean token, currently wokring only on S
+        # if one wants to exapnd this optimization it needs to make unique dictionaries for each token
+        def make_unique(examples_iterable, is_bool_optimization_active: bool):
+            if is_bool_optimization_active:
+                return make_unique_bool(examples_iterable)
+            return make_unique_default(examples_iterable)
+
+
         new_examples = {}
         for token in self.__generation_order:
+            if token not in self.__get_exapndable_tokens():
+                continue
             grow_token(token, new_examples)
-            # TODO: implement merge_token function that will merge expandable token's examples after generation
+            is_root, new_token_examples = token == "S", new_examples[token]
+            token_new_unique_examples = make_unique(new_token_examples, is_root)
+            new_examples[token] = token_new_unique_examples
         
-        if merge_all_flag:
-            unique_examples = {t: {ne for ne in new_examples[t] if is_unique(ne, self.examples[t])} for t in new_examples}
-            # print(f"unique_examples: {unique_examples}")
-            # print(f"current examples: {self.examples}")
-            self.prev_new_examples = unique_examples
-            for t in unique_examples:
-                # print(f"t = {t}")
-                self.examples[t] = self.examples[t].union(unique_examples[t])
-            # print(f"S examples: {self.examples['S']}")
-        else:
-            new_examples = {t: set(val) for t, val in new_examples.items()}
-            new_examples['S'] = {ne for ne in new_examples['S'] if is_unique(ne, self.examples['S'])}
-            for t in new_examples:
-                # print(f"t = {t}")
-                self.examples[t] = self.examples[t].union(new_examples[t])
+        self.prev_new_examples = {k: set(v) for k,v in new_examples.items()}
+        # insert examples to dictionaries
+        # TODO: might be smart to also add the evaluation of programs only if they are added as examples
+        print(f"new root examples: {new_examples['S']}")
+        for example in new_examples['S']:
+            encoding = self.get_results_encoding(example)
+            self.encoding_to_example[encoding] = example
+            self.example_to_encoding[example] = encoding
     
     @staticmethod
     def __dfs_sort(prod_rules):
@@ -292,35 +318,6 @@ class Synthesizer(object):
                 if any((t in expandables for t in pr)):
                     expander_rules.append(pr)
         return expander_rules
-        # return set((pr for pr in (self.prod_rules[e] for e in expandables) if any((t in expandables for t in pr))))
-
-
-
-    # # TODO: grow does not support the result of merge_invariants yet, add support quickly!
-    # # removed this function for now as __merge is the more robust of the two
-    # def __merge_invariants(self, states):
-    #     def get_results_list(invariant_example, states):
-    #         return [satisfies(invariant_example, state) for state in states]
-        
-    #     """
-    #     takes a list of booleans (based on true/ false evaluation) and gives an int, which the i-th bit is 1 if evaluated to true
-    #     """
-    #     def convert_results_to_int(res_list):
-    #         res = 0
-    #         for i, b in res_list:
-    #             res = res | (int(b) << i)
-    #         return res 
-        
-    #     invariant_examples = self.examples["S"]
-    #     example_to_int = {}
-    #     int_to_example = {}
-    #     for example in invariant_examples:
-    #         example_success_flags = convert_results_to_int(get_results_list(example, states))
-    #         example_to_int[example] = example_success_flags
-    #         if example_success_flags not in int_to_example:
-    #             int_to_example[example_success_flags] = example
-        
-    #     self.examples["S"] = int_to_example.values[:]
     
     
 
@@ -346,12 +343,10 @@ class Synthesizer(object):
             if t in self.non_terminals:
                 self.examples[t] = set(flatten([grow_pr(pr) for pr in self.prod_rules[t]]))
                 # TODO: problem is in the line below, the rules for S after that rule are double boolops
-                # self.prev_new_examples[t] = set(flatten([grow_pr(pr) for pr in self.prod_rules[t]]))
                 self.prev_new_examples[t] = self.examples[t].copy()
-            
+        print(f"depth 1 root examples: {self.prev_new_examples['S']}") 
         for program in self.prev_new_examples['S']:
             if satisfies_all(program, self.states):
-                # print(f"program returned: {program}")
                 yield program
 
         for i in range(1, max_depth):
@@ -359,23 +354,7 @@ class Synthesizer(object):
             self.__grow_merge(merge_all_flag)
             for program in self.prev_new_examples['S']:
                 if satisfies_all(program, self.states):
-                    # print(f"program returned: {program}")
                     yield program
-
-        # for i in range(max_depth-1):
-            
-        #     for program in self.prev_new_examples['S']:
-        #         if satisfies_all(program, self.states):
-        #             # print(f"program returned: {program}")
-        #             yield program
-        #     print(f"starting depth: {i+2}")
-        #     self.__grow_merge(merge_all_flag)
-        
-        # print(f"all S programs: {self.examples['S']}")
-        # for program in self.prev_new_examples['S']:
-        #     if satisfies_all(program, self.states):
-        #         # print(f"program returned: {program}")
-        #         yield program
         
 
         

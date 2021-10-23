@@ -2,4 +2,4 @@ S ::= ( S LOGOP S ) | ( VAR RELOP VAR ) | ( VAR RELOP VAL )
 LOGOP ::= and | or
 VAL ::= 0 | 1 | -1
 VAR ::= x | y | n
-RELOP ::=  <= | != | < | ==
+RELOP ::=  != | >= | > | ==
