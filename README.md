@@ -50,9 +50,18 @@ We have done quite a few additions:
         - Iteration based grow function instead of recursion based: Python is quicker
             and more memory efficient using list comprehension than recursion.
         - Custom number of grow iterations: Lets one expand a single token more than the rest
-            of the graph. A reason to do this is when one token requires more expanding more than
+            of the graph. A reason to do this is when one token requires more expansion than
             the others. Graph Analysis allows one to know which other tokens (which the desired token
             is dependent on) also need to be expanded more. This is a currently not implemented feature.
+            An example for this is when dealing with unbounded numbers. We can only generate numbers
+            of a certain size given the examples beforehand. If we want to not limit this by grammar
+            (for example, adding 1, 2, 3 and 4 to the previous numbers) then we can instead
+            allow the user to define the depth of addition to the number without changing the grammar.
+            An optimization to this is least-expensive generation, which takes the subgraph in which
+            the expanded token is the root and contains only the nodes achievable by this node
+            and not over its level, and finding the expression with the least expandable tokens
+            (in the overall expansion, not only single level) and then expanding this rule only when
+            using the "special iterations".
     3. Merge during grow: In the original algorithm, the grow and merge stages are different.
         We changed this to merge the token examples once finished growing the token. This means
         that given tokens T1 and T2, if T1 is dependent on T2, and we call grow on the graph.

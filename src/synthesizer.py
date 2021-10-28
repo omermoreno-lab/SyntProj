@@ -1,4 +1,5 @@
 # from lib.adt.tree import Visitor
+from random import SystemRandom
 import time
 import typing
 # import functools
@@ -6,6 +7,7 @@ from itertools import chain
 # from typing_extensions import IntVar
 import prog
 import json
+import enum
 EXPECTED_RES_VAR = "expected_res" 
 
 
@@ -23,6 +25,12 @@ class NoEqual:
 
     def __eq__(self, other):
         return False
+
+
+class MergeOptimizationType(enum.Enum):
+    NO_OPT = 0
+    BOOL_OPT = 1
+    HASH_OPT = 2
 
 
 class Synthesizer(object):
@@ -147,7 +155,6 @@ class Synthesizer(object):
                 if satisfies_all(program, self.states):
                     yield program
 
-
     def get_program_results(self, program):
         if program in self.program_result:
             return self.program_result[program]
@@ -165,7 +172,22 @@ class Synthesizer(object):
             encoding ^=  flag << idx
         return encoding
 
-    def __grow_merge(self, merge_all_flag):
+    def get_results_hash(self, program):
+        def hash_results(to_hash):
+            cls = type(to_hash)
+            if cls in (int, str, bool):
+                return hash(to_hash)
+            if cls == list:
+                return hash(tuple([hash_results(v) for v in to_hash]))
+            raise TypeError(f"Current type is not supported, type is {cls}")
+
+        if program in self.example_to_encoding:
+            return self.example_to_encoding[program]
+
+        return hash_results(self.get_program_results(program))
+
+
+    def __grow_merge(self, optimization_type: MergeOptimizationType):
         """
         This is our try to make an efficient grow function,
         We would like to apply two techniques:
@@ -189,13 +211,17 @@ class Synthesizer(object):
             # curr_new = ((ne + oe) for oe in tail_oe for ne in token_ne)		            # new examples from current token
             # all_new = ((ne1 + ne2) for ne2 in tail_ne for ne1 in token_ne)	            # new examples from both
 
+            if len(token_ne) != 0:
+                tail_oe = list(tail_oe)                                                     # evaluate the rest of the examples if we need to pass on them for more than once
+
             # This is the order we do the generation to give preference to the first tokens in examples
-            tail_new = ((oe + ne) for oe in token_oe for ne in tail_ne)		            # new examlpes from tail
-            curr_new = ((ne + oe) for ne in token_ne for oe in tail_oe)		            # new examples from current token
-            all_new = ((ne1 + ne2) for ne1 in token_ne for ne2 in tail_ne)	            # new examples from both
+            tail_new = ((oe + ne) for oe in token_oe for ne in tail_ne)		                # new examlpes from tail
+            curr_new = ((ne + oe) for ne in token_ne for oe in tail_oe)		                # new examples from current token
+            all_new = ((ne1 + ne2) for ne1 in token_ne for ne2 in tail_ne)	                # new examples from both
 
             new_programs = list(chain(tail_new, curr_new, all_new))
-            old_programs = [oe1 + oe2 for oe2 in tail_oe for oe1 in token_oe]       # TODO: This is expensive, might not want to do this that way
+            old_programs = (oe1 + oe2 for oe1 in token_oe for oe2 in tail_oe)               # TODO: I changed this to lazy evalutaion, check if this works correctly
+                                                                                            # TODO: changed order here, check if fine
             return new_programs, old_programs
 
         def is_expandable(pr):
@@ -218,20 +244,18 @@ class Synthesizer(object):
             unique_in_all_examples = [e for e in unique_list if is_unique_default(e, self.examples[token])]
             return unique_in_all_examples
 
-        def make_unique_bool(examples_iterable):
+        def make_unique_by_encoding(examples_iterable, encode_type: MergeOptimizationType):
             unique_dict = {}
             for e in examples_iterable:
-                if self.get_results_encoding(e) not in unique_dict:
-                    unique_dict[self.get_results_encoding(e)] = e
+                example_encoding = self.get_results_encoding(e) if encode_type == MergeOptimizationType.BOOL_OPT else self.get_results_hash(e)
+                if example_encoding not in unique_dict:
+                    unique_dict[example_encoding] = e
             return [example for encoding, example in unique_dict.items() if encoding not in self.encoding_to_example] 
-            
-        # the optimization can potentially work for every boolean token, currently wokring only on S
-        # if one wants to exapnd this optimization it needs to make unique dictionaries for each token
-        def make_unique(examples_iterable, is_bool_optimization_active: bool):
-            if is_bool_optimization_active:
-                return make_unique_bool(examples_iterable)
-            return make_unique_default(examples_iterable)
 
+        def make_unique(examples_iterable, optimization_type = MergeOptimizationType.HASH_OPT):
+            if optimization_type == MergeOptimizationType.NO_OPT:
+                return make_unique_default(examples_iterable)
+            return make_unique_by_encoding(examples_iterable, optimization_type)
 
         new_examples = {}
         for token in self.__generation_order:
@@ -239,7 +263,10 @@ class Synthesizer(object):
                 continue
             grow_token(token, new_examples)
             is_root, new_token_examples = token == "S", new_examples[token]
-            token_new_unique_examples = make_unique(new_token_examples, is_root)
+            if optimization_type == MergeOptimizationType.BOOL_OPT:
+                token_new_unique_examples = make_unique(new_token_examples, MergeOptimizationType.BOOL_OPT if is_root else MergeOptimizationType.NO_OPT)
+            else:
+                token_new_unique_examples = make_unique(new_token_examples, optimization_type)
             new_examples[token] = token_new_unique_examples
         
         self.prev_new_examples = {k: set(v) for k,v in new_examples.items()}
@@ -247,7 +274,7 @@ class Synthesizer(object):
         # TODO: might be smart to also add the evaluation of programs only if they are added as examples
         print(f"new root examples: {new_examples['S']}")
         for example in new_examples['S']:
-            encoding = self.get_results_encoding(example)
+            encoding = self.get_results_hash(example) if optimization_type == MergeOptimizationType.HASH_OPT else self.get_results_encoding(example)
             self.encoding_to_example[encoding] = example
             self.example_to_encoding[example] = encoding
     
@@ -321,7 +348,8 @@ class Synthesizer(object):
     
     
 
-    def bottom_up_optimized(self, max_depth, merge_all_flag):
+    def bottom_up_optimized(self, max_depth, merge_opt=MergeOptimizationType.HASH_OPT):
+
         def satisfies(cond, state: dict) -> bool:
             res = eval(cond, state) 
             assert(isinstance(res, bool))
@@ -351,7 +379,7 @@ class Synthesizer(object):
 
         for i in range(1, max_depth):
             print(f"starting depth: {i+1}")
-            self.__grow_merge(merge_all_flag)
+            self.__grow_merge(merge_opt)
             for program in self.prev_new_examples['S']:
                 if satisfies_all(program, self.states):
                     yield program

@@ -84,7 +84,7 @@ def __get_args():
     parser.add_argument("-ge", "--generate-examples", dest="generate_examples", action="store_true", help="Generate examples randomly")
     parser.add_argument("-md", "--max-depth", nargs=1, dest="max_depth", type=int, default=[2], help="Set max depth for the synthesizer, default=2")
     parser.add_argument("-ft", "--filter-tautologies", dest="filter_tau", action="store_true", help="Filter tautologies using the solver")
-    parser.add_argument("-ma", "--merge-all", dest="merge_all_flag", action="store_true", help="Merge all subprograms, default is merge only root program")
+    # parser.add_argument("-ma", "--merge-all", dest="merge_all_flag", action="store_true", help="Merge all subprograms, default is merge only root program")
 
     args = parser.parse_args()
     args.max_depth = args.max_depth[0]
@@ -92,14 +92,14 @@ def __get_args():
     print(args)
     return args
 
-def get_invariants_by_tactic(synth: Synthesizer, tactic, max_depth: int, merge_all_flag: bool):
+def get_invariants_by_tactic(synth: Synthesizer, tactic, max_depth: int):
     if tactic == "simple":
-        return synth.bottom_up_optimized(max_depth, merge_all_flag)
+        return synth.bottom_up_optimized(max_depth)
         # return synth.bottom_up_enumeration(4)
     elif tactic == "cond-extraction":
         pass
     else:
-        invariants = synth.bottom_up_optimized(max_depth, merge_all_flag)
+        invariants = synth.bottom_up_optimized(max_depth)
         return [functools.reduce(lambda a,b: f"({a} and {b})", invariants)]
 
 
@@ -135,7 +135,7 @@ if __name__ == "__main__":
 
     synth = Synthesizer.from_folder(test_folder)
     
-    invariant_strings = get_invariants_by_tactic(synth, args.tactic, args.max_depth, args.merge_all_flag)
+    invariant_strings = get_invariants_by_tactic(synth, args.tactic, args.max_depth)
     invariants_iter = solver.formulas_to_z3(invariant_strings, var_to_z3)
     if args.filter_tau:
         invariants_iter = solver.filter_tautologies(invariants_iter)
