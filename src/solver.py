@@ -114,7 +114,7 @@ def var_to_z3_from_config(config_file: str):
 
 def str_to_z3(expr: str, var_to_z3: dict):
     parser = syntax.PyExprParser(var_to_z3)
-    return parser(expr)
+    return parser(expr).as_z3()
 
 # def filter_tautologies(invariants):
 #     return [invariant for invariant in invariants if not prove(invariant)[0]]       # filter all invariants that are fundementally true, aka tautologies

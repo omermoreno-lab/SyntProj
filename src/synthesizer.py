@@ -8,6 +8,7 @@ from itertools import chain
 import prog
 import json
 import enum
+import itertools
 EXPECTED_RES_VAR = "expected_res" 
 
 
@@ -31,6 +32,13 @@ class MergeOptimizationType(enum.Enum):
     NO_OPT = 0
     BOOL_OPT = 1
     HASH_OPT = 2
+
+
+class ExplorationOptType(enum.Enum):
+    NO_OPT = enum.auto()
+    INV_PATTERN_OPT = enum.auto()
+    AND_OPT = enum.auto()
+
 
 
 class Synthesizer(object):
@@ -172,20 +180,20 @@ class Synthesizer(object):
             encoding ^=  flag << idx
         return encoding
 
-    def get_results_hash(self, program):
-        def hash_results(to_hash):
-            cls = type(to_hash)
-            if cls in (int, str, bool):
-                return hash(to_hash)
-            if cls == list:
-                return hash(tuple([hash_results(v) for v in to_hash]))
-            raise TypeError(f"Current type is not supported, type is {cls}")
+    @staticmethod
+    def hash_results(to_hash):
+        cls = type(to_hash)
+        if cls in (int, str, bool):
+            return hash(to_hash)
+        if cls == list:
+            return hash(tuple([Synthesizer.hash_results(v) for v in to_hash]))
+        raise TypeError(f"Current type is not supported, type is {cls}")
 
+    def get_results_hash(self, program):
         if program in self.example_to_encoding:
             return self.example_to_encoding[program]
 
-        return hash_results(self.get_program_results(program))
-
+        return Synthesizer.hash_results(self.get_program_results(program))
 
     def __grow_merge(self, optimization_type: MergeOptimizationType):
         """
@@ -346,10 +354,11 @@ class Synthesizer(object):
                     expander_rules.append(pr)
         return expander_rules
     
-    
-
-    def bottom_up_optimized(self, max_depth, merge_opt=MergeOptimizationType.HASH_OPT):
-
+    def bottom_up_optimized(self, 
+    max_depth, 
+    merge_opt=MergeOptimizationType.HASH_OPT, 
+    exp_opt=ExplorationOptType.NO_OPT,
+    invariant_extension_format = "{}"):
         def satisfies(cond, state: dict) -> bool:
             res = eval(cond, state) 
             assert(isinstance(res, bool))
@@ -359,6 +368,9 @@ class Synthesizer(object):
         def satisfies_all(cond, states):
             return all((satisfies(cond, s) for s in states))
 
+        def satisifies_positives(cond, states):
+            return all((satisfies(cond, s) for s in states if s[EXPECTED_RES_VAR]))
+
         def grow_pr(pr):
             if pr[0] in self.__get_exapndable_tokens():
                 return []
@@ -366,26 +378,43 @@ class Synthesizer(object):
                 return self.examples[pr[0]]
             return [e1 + e2 for e1 in self.examples[pr[0]] for e2 in grow_pr(pr[1:])]
         
+        def init_graph():    
+            for t in self.__generation_order:       # depth 1 exception
+                if t in self.non_terminals:
+                    self.examples[t] = set(flatten([grow_pr(pr) for pr in self.prod_rules[t]]))
+                    # TODO: problem is in the line below, the rules for S after that rule are double boolops
+                    self.prev_new_examples[t] = self.examples[t].copy()
+            print(f"depth 1 root examples: {self.prev_new_examples['S']}")
 
-        for t in self.__generation_order:       # depth 1 exception
-            if t in self.non_terminals:
-                self.examples[t] = set(flatten([grow_pr(pr) for pr in self.prod_rules[t]]))
-                # TODO: problem is in the line below, the rules for S after that rule are double boolops
-                self.prev_new_examples[t] = self.examples[t].copy()
-        print(f"depth 1 root examples: {self.prev_new_examples['S']}") 
-        for program in self.prev_new_examples['S']:
-            if satisfies_all(program, self.states):
-                yield program
+        def format_invariant(inv):
+            return invariant_extension_format.format(inv)
 
-        for i in range(1, max_depth):
+        def get_new_invariant_examples():
+            return map(format_invariant, self.prev_new_examples['S'])
+
+        for i in range(max_depth):
             print(f"starting depth: {i+1}")
-            self.__grow_merge(merge_opt)
-            for program in self.prev_new_examples['S']:
+            if i == 0:
+                init_graph()        # This grows the synth depth by 1
+            else:
+                self.__grow_merge(merge_opt)
+            invariant_candidates = list(get_new_invariant_examples())
+            print(f"new invariant candidates: {invariant_candidates}")
+            for program in invariant_candidates:
                 if satisfies_all(program, self.states):
                     yield program
         
-
-        
+        # if exp_opt == ExplorationOptType.AND_OPT:
+        if True:
+            print("reached and operator combinations")
+            pos_sat_progs = [prog for prog in get_new_invariant_examples() if satisifies_positives(prog, self.states)]
+            print(f"programs that satisfy the positive examples: {pos_sat_progs}")
+            for L in range(2, len(pos_sat_progs)+1):
+                for programs in itertools.combinations(pos_sat_progs, L):
+                    print(f"currently tested combination: {programs}")
+                    program = " and ".join(programs)
+                    if satisfies_all(program, self.states):     # TODO: if this affects performance this can be changed to satisfies_negatives
+                        yield program
 
 
 if __name__ == "__main__":

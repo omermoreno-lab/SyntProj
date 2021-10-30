@@ -27,8 +27,8 @@ def simple_check():
     expr_parser = syntax.PyExprParser(var_to_z3)
     
     invariants_str = synth.get_invariants(grammar)
-    invariants = [expr_parser(e) for e in invariants_str]
-    properties = [expr_parser(p) for p in properties_str]
+    invariants = [expr_parser(e).as_z3() for e in invariants_str]
+    properties = [expr_parser(p).as_z3() for p in properties_str]
     non_obvious_invariants = solver.filter_tautologies(invariants)
     print(f"invariants found: {non_obvious_invariants}")
     proven_properties = solver.prove_properties(non_obvious_invariants, properties)
@@ -36,7 +36,7 @@ def simple_check():
     combined_invariants = [functools.reduce(z3.And, non_obvious_invariants)]
     proven_using_and_operator = solver.prove_properties(combined_invariants, properties)
     print(f"proven using and tactic: {proven_using_and_operator}")
-    suggested_properties = [expr_parser(sp) for sp in synth.get_property_suggestions(grammar)]
+    suggested_properties = [expr_parser(sp).as_z3() for sp in synth.get_property_suggestions(grammar)]
     print(f"suggested properties: {solver.filter_tautologies(suggested_properties)}")
     print(f"time took: {time.time()-start} seconds")
 
