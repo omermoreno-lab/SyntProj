@@ -33,6 +33,18 @@ class PyExprParserError(Exception):
     pass
 
 
+class SimplePyParserError(Exception):
+    """Exception raised for errors in the expression parser.
+
+    Attributes:
+        expression -- input expression in which the error occurred
+        message -- explanation of the error
+    """
+
+    pass
+
+
+
 class PostProcessError(PyExprParserError):
     def __init__(self, tree):
         self.tree = tree
@@ -336,7 +348,9 @@ class SimplePyParser(object):
                 forall_expr = lambda env:ForAll([var_to_z3[v] for v in var_to_z3 if v != "linv"],
                                          And(Implies(And(var_to_z3['linv'](var_to_z3), b(var_to_z3)), _weakest_precond(code, var_to_z3['linv'], var_to_z3)(var_to_z3)),
                                              Implies(And(var_to_z3['linv'](var_to_z3), b_neg(var_to_z3)), Q(var_to_z3)))) 
-
+                return lambda env: And(var_to_z3['linv'](env), forall_expr(env))
+            
+            raise SimplePyParserError(f"tried to extract weakest precondition from {t}")
         var_to_z3 = var_to_z3.copy()
         var_to_z3["linv"] = invariant_as_z3
         expr_parser = PyExprParser(var_to_z3)
