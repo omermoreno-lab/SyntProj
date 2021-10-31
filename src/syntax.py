@@ -16,7 +16,8 @@ OP = {'+': operator.add, '-': operator.sub,
       '*': operator.mul, '/': operator.floordiv,
       '!=': operator.ne, '>': operator.gt, '<': operator.lt,
       '<=': operator.le, '>=': operator.ge, '=': operator.eq,
-      "==": operator.eq, "^": operator.xor, "&": operator.or_,"and": And, "or": Or, "not": Not, "in": Contains}
+      "==": operator.eq, "^": operator.xor, "&": operator.or_,
+      "%": operator.mod, "and": And, "or": Or, "not": Not, "in": Contains}
 SUPPORTED_FUNCTIONS = {"len": z3.Length}
 
 
@@ -53,7 +54,7 @@ class PostProcessError(PyExprParserError):
 
 class PyExprParser(object):
     TOKENS = r"if else while for in lambda and or not (?P<bool>True|False) (?P<lb>\n) (?P<id>[^\W\d]\w*)  " \
-             r" (?P<string>\"[^\"]*\") (?P<num>[+\-]?\d+) (?P<op_assign>[+-]=)  (?P<op>[!<>=]=|([+\-*/<>])) " \
+             r" (?P<string>\"[^\"]*\") (?P<num>[+\-]?\d+) (?P<op_assign>[+-]=)  (?P<op>[!<>=]=|([+\-*/<>\%])) " \
              r"(?P<lparen>\() (?P<rparen>\)) (?P<lbrace>\{) (?P<rbrace>\}) (?P<colon>:) " \
              r"(?P<lbracket>\[) (?P<rbracket>\]) (?P<assign>=) (?P<comma>,)".split()
     GRAMMAR = r"""
@@ -118,7 +119,7 @@ class PyExprParser(object):
         # TODO: change from if-else to dictionary-based matching
         if constraints is None:
             constraints = []
-        print(f"current tree root: {t.root}")
+        # print(f"current tree root: {t.root}")
         if t.root == "γ":
             return self._as_z3_inner(t.subtrees[0])
         elif t.root == "E":

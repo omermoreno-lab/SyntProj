@@ -135,15 +135,15 @@ def formulas_to_z3(formulas_iter, var_to_z3: dict):
 #     return proven
 
 def convert_to_py_expr(k, e, model):
-    print(f"{k=}\n{e=}\n")
+    # print(f"{k=}\n{e=}\n")
     e_str = str(e)
     
     if e_str[0] != "K":
         return eval(e_str)
     l = int(e_str.split(',')[1][:-1]) # This is very bad programming, sadly I have to finish writing this code   
-    print(f"array len = {l}")
+    # print(f"array len = {l}")
     val = [model.evaluate(k[i]) for i in range(l)]
-    print(f"l = {val}")
+    # print(f"l = {val}")
     return val
 
 # Both inputs should be z3 formulas

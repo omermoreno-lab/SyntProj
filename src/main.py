@@ -79,7 +79,7 @@ def harder_check():
 def __get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("source", type=str, help="The source folder from which all files should be pulled")
-    parser.add_argument("tactic", type=str, choices=["simple", "cond-extraction", "logical-and-adder"], help="The tactic used by the synthesizer when producing the invariant")
+    parser.add_argument("tactic", type=str, choices=["simple", "cond-extraction"], help="The tactic used by the synthesizer when producing the invariant")
     parser.add_argument("-d", "--dest", dest="dest", nargs=1, type=str, help="Choose the destination of the result file, default is <source>/res.json")
     parser.add_argument("-ge", "--generate-examples", dest="generate_examples", action="store_true", help="Generate examples randomly")
     parser.add_argument("-md", "--max-depth", nargs=1, dest="max_depth", type=int, default=[2], help="Set max depth for the synthesizer, default=2")
@@ -97,15 +97,18 @@ def get_invariants_by_tactic(synth: Synthesizer, tactic, max_depth: int, program
         return synth.bottom_up_optimized(max_depth)
         # return synth.bottom_up_enumeration(4)
     elif tactic == "cond-extraction":
-        # while_line = [line for line in program_text.split("\n") if "while" in line]
-        # if len(while_line) == 1:
-            
-        # else:
-        #     if len(while_line) == 0:
-        #         print("No while loops in program")
-        #     else:
-        #         print("multiple while loops in program")
-        pass
+        while_lines = [line for line in program_text.split("\n") if "while" in line]
+        if len(while_lines) == 1:
+           while_line = while_lines[0]
+           expr = while_line[len("while"): -1]      # stripping the line from "while" and ":"
+           cond = "((" + expr + ")" + " or {})"
+           return synth.bottom_up_optimized(max_depth, invariant_extension_format=cond)
+        else:
+            if len(while_lines) == 0:
+                print("No while loops in program")
+            else:
+                print("multiple while loops in program")
+        # pass
     else:
         invariants = synth.bottom_up_optimized(max_depth)
         return [functools.reduce(lambda a,b: f"({a} and {b})", invariants)]
