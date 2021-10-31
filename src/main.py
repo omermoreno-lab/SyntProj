@@ -92,11 +92,19 @@ def __get_args():
     print(args)
     return args
 
-def get_invariants_by_tactic(synth: Synthesizer, tactic, max_depth: int):
+def get_invariants_by_tactic(synth: Synthesizer, tactic, max_depth: int, program_text: str):
     if tactic == "simple":
         return synth.bottom_up_optimized(max_depth)
         # return synth.bottom_up_enumeration(4)
     elif tactic == "cond-extraction":
+        # while_line = [line for line in program_text.split("\n") if "while" in line]
+        # if len(while_line) == 1:
+            
+        # else:
+        #     if len(while_line) == 0:
+        #         print("No while loops in program")
+        #     else:
+        #         print("multiple while loops in program")
         pass
     else:
         invariants = synth.bottom_up_optimized(max_depth)
@@ -134,14 +142,23 @@ if __name__ == "__main__":
             examples = json.load(f)
 
     synth = Synthesizer.from_folder(test_folder)
+    with open(prog_path, 'r') as f:
+        program_text = f.read()
+    invariant_strings = get_invariants_by_tactic(synth, args.tactic, args.max_depth, program_text)
+    # invariants_iter = solver.formulas_to_z3(invariant_strings, var_to_z3)
+    # if args.filter_tau:
+    #     invariants_iter = solver.filter_tautologies(invariants_iter)
     
-    invariant_strings = get_invariants_by_tactic(synth, args.tactic, args.max_depth)
-    invariants_iter = solver.formulas_to_z3(invariant_strings, var_to_z3)
-    if args.filter_tau:
-        invariants_iter = solver.filter_tautologies(invariants_iter)
-    
-    proven = solver.prove_properties(invariants_iter, properties)
+    proven, counter_examples = solver.prove_properties(invariant_strings, properties, program_text, var_to_z3)
     print(f"proven properties: {proven}")
-    
+    print(f"new produced counter-examples {counter_examples}")
+    with open(records_path, 'r') as f:
+        states = json.load(f)
+    variables = states[0][1:]
+    var_to_randomizer = prog.get_variable_randomizers_from_file(env_path)
+    counter_examples = [[False] + [ce[v] if v in ce else var_to_randomizer[v]() for v in variables] for ce in counter_examples]
+    states += counter_examples
+    with open(records_path, 'w+') as f:
+        json.dump(states, f)
 
 

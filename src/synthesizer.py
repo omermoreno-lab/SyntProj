@@ -15,6 +15,11 @@ EXPECTED_RES_VAR = "expected_res"
 def flatten(t):
     return [item for sublist in t for item in sublist]
 
+def safe_evaluate(program, state):
+            try:
+                return eval(program, state)
+            except BaseException as e:
+                return str(e)
 
 """
 a class used for comfortability only, in case eval() does not return a result and one still wants to insert it into the results list
@@ -70,7 +75,9 @@ class Synthesizer(object):
             terminals = {self.terminals}\n\
             non_terminals = {self.non_terminals}\n\
             prod_rules = {self.prod_rules}\n\
-            examples = {self.examples}")
+            examples = {self.examples}\n\
+            generation_order = {self.__generation_order}\n\
+            expandable_tokens = {self.__get_exapndable_tokens()}")
 
     @staticmethod
     def from_text(grammar_list, states_list):
@@ -166,7 +173,7 @@ class Synthesizer(object):
     def get_program_results(self, program):
         if program in self.program_result:
             return self.program_result[program]
-        program_evaluation = [eval(program, state) for state in self.states]
+        program_evaluation = [safe_evaluate(program, state) for state in self.states]
         self.program_result[program] = program_evaluation
         return program_evaluation
 
@@ -360,7 +367,10 @@ class Synthesizer(object):
     exp_opt=ExplorationOptType.NO_OPT,
     invariant_extension_format = "{}"):
         def satisfies(cond, state: dict) -> bool:
-            res = eval(cond, state) 
+            try:
+                res = eval(cond, state)
+            except:
+                res = False
             assert(isinstance(res, bool))
             res = res if state[EXPECTED_RES_VAR] else not res
             return res
@@ -406,13 +416,13 @@ class Synthesizer(object):
         
         # if exp_opt == ExplorationOptType.AND_OPT:
         if True:
-            print("reached and operator combinations")
+            print("trying to produce and operator combinations")
             pos_sat_progs = [prog for prog in get_new_invariant_examples() if satisifies_positives(prog, self.states)]
             print(f"programs that satisfy the positive examples: {pos_sat_progs}")
             for L in range(2, len(pos_sat_progs)+1):
                 for programs in itertools.combinations(pos_sat_progs, L):
-                    print(f"currently tested combination: {programs}")
                     program = " and ".join(programs)
+                    # print(f"currently tested combination: {program}")
                     if satisfies_all(program, self.states):     # TODO: if this affects performance this can be changed to satisfies_negatives
                         yield program
 

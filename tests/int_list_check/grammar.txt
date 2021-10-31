@@ -1,5 +1,7 @@
-S ::= ( S LOGOP S ) | ( VAR RELOP VAR ) | ( VAR RELOP VAL )
-LOGOP ::= and | or
+S ::= ( VAR RELOP E ) 
+VAR ::= LIST [ VAR ] | LIST [ VAL ] | x | n 
+E ::= VAR | VAL | E BINOP E
+BINOP ::= + | - | ^
 VAL ::= 0 | 1 | -1
-VAR ::= x | y | n
+LIST ::= lista | listb
 RELOP ::= == | != | < | <=

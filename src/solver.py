@@ -134,17 +134,33 @@ def formulas_to_z3(formulas_iter, var_to_z3: dict):
 #     proven = [p for p in properties if prove_property(invariants, p)]
 #     return proven
 
+def convert_to_py_expr(k, e, model):
+    print(f"{k=}\n{e=}\n")
+    e_str = str(e)
+    
+    if e_str[0] != "K":
+        return eval(e_str)
+    l = int(e_str.split(',')[1][:-1]) # This is very bad programming, sadly I have to finish writing this code   
+    print(f"array len = {l}")
+    val = [model.evaluate(k[i]) for i in range(l)]
+    print(f"l = {val}")
+    return val
+
 # Both inputs should be z3 formulas
-def prove_properties(invariants_iter, properties: list):
+def prove_properties(invariant_strings, properties: list, program_text, var_to_z3):
     proven = []
     unproven = None
     prev_unproven = properties[:]
+    counter_examples = []
 
-    for inv in invariants_iter:
+    for inv in invariant_strings:
         print(f"current invariant: {inv}")
         print(f"properties to prove: {properties}")
         unproven = []
+        inv = syntax.PyExprParser(var_to_z3)(inv).as_z3()
         for p in prev_unproven:
+            # precondition = syntax.SimplePyParser.get_wp(p, program_text, inv, var_to_z3)
+            # res = prove(Implies(True, precondition))
             res = prove(Implies(inv, p))
             if res[0]:
                 proven.append(p)
@@ -152,6 +168,9 @@ def prove_properties(invariants_iter, properties: list):
                     return proven 
             else:
                 # TODO: add counter example as negative example in synth and in file
+                counter_examples.append(res[1])                
                 unproven.append(p)
         prev_unproven = unproven
-    return proven
+    print(f"{counter_examples=}")
+    counter_examples = [{str(k): convert_to_py_expr(k, ce[k], ce) for k in ce} for ce in counter_examples]
+    return proven, counter_examples

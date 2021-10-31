@@ -12,7 +12,6 @@ MAX_INT_VAL = 2 ** 8
 NUM_EXAMPLES = 2 ** 4
 
 
-
 # standard library
 
 def __free_list__(init_function):
@@ -68,18 +67,22 @@ def generate_examples(program: str, var_to_initializer: dict):
     examples.extend(std.get_recorded_states())
     return examples
 
+def get_variable_randomizers(var_to_type_dict):
+    type_str_to_randomizer = {"int": __free_int__, "str": __free_str__, "list[str]": lambda: __free_list__(__free_str__), "list[int]": lambda: __free_list__(__free_int__)}
+    return dict((var, type_str_to_randomizer[var_type]) for var, var_type in var_to_type_dict.items())
+
+
+def get_variable_randomizers_from_file(path):
+    with open(path, 'r') as f:
+        var_to_type_dict = json.load(f)
+    return get_variable_randomizers(var_to_type_dict)
 
 def generate_examples_from_files(program_path: str, env_setting_path: str):
-    type_str_to_randomizer = {"int": __free_int__, "str": __free_str__, "list[str]": lambda: __free_list__(__free_str__), "list[int]": lambda: __free_list__(__free_int__)}
     # TODO: make str to initializer smarter, using reg expressions
     with open(program_path, 'r') as f:
         program = f.read()
-    
-    with open(env_setting_path, 'r') as f:
-        var_to_type_dict = json.load(f)
-    var_to_randomizer = dict((var, type_str_to_randomizer[var_type]) for var, var_type in var_to_type_dict.items())
+    var_to_randomizer = get_variable_randomizers_from_file(env_setting_path)
 
-    
     return generate_examples(program, var_to_randomizer)
 
 

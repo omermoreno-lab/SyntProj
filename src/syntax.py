@@ -16,7 +16,7 @@ OP = {'+': operator.add, '-': operator.sub,
       '*': operator.mul, '/': operator.floordiv,
       '!=': operator.ne, '>': operator.gt, '<': operator.lt,
       '<=': operator.le, '>=': operator.ge, '=': operator.eq,
-      "==": operator.eq, "and": And, "or": Or, "not": Not, "in": Contains}
+      "==": operator.eq, "^": operator.xor, "&": operator.or_,"and": And, "or": Or, "not": Not, "in": Contains}
 SUPPORTED_FUNCTIONS = {"len": z3.Length}
 
 
@@ -118,6 +118,7 @@ class PyExprParser(object):
         # TODO: change from if-else to dictionary-based matching
         if constraints is None:
             constraints = []
+        print(f"current tree root: {t.root}")
         if t.root == "γ":
             return self._as_z3_inner(t.subtrees[0])
         elif t.root == "E":
@@ -216,7 +217,7 @@ def run_test(tester, cond, vars, expected):
 class SimplePyParser(object):
 
     TOKENS = r"if else while for in (?P<lb>\n) (?P<id>[^\W\d]\w*)  " \
-             r"(?P<colon>:) (?P<lbrace>\{) (?P<rbrace>\}) (?P<assign>=) (?P<expr>.*)".split()
+             r"(?P<colon>:) (?P<lbrace>\{) (?P<rbrace>\}) (?P<assign>=) (?P<expr>[^\n]+)".split()
     GRAMMAR = r"""
     S   ->   S1 | S1 lb | S1 lb S
     # S1  ->   ASSIGN | OP_ASSIGN | FOR | WHILE | IF | IF_ELSE | FUNC_CALL
@@ -359,12 +360,15 @@ class SimplePyParser(object):
     @staticmethod
     def get_wp(safety_property, program_text, loop_invariant: str, var_to_z3):
         program_lines = program_text.split("\n")
+        print(program_lines)
         # for i, _ in enumerate(program_lines):
         #     if "while" in program_lines:
         #         break
         # program_lines = program_lines[i:]       # removing all lines that come before the loop
-        program_lines = [line for line in program_lines if "import" not in line and "__inv__" not in line]
+        filtered_text = ["#", "import", "__invariant"]
+        program_lines = [line for line in program_lines if all(ft not in line for ft in filtered_text)]
         program_text = "\n".join(program_lines)
+        print(f"program text after processing: {program_text}")
         loop_invariant_as_z3 = lambda env: PyExprParser(env)(loop_invariant).as_z3()
         return SimplePyParser()(program_text).weakest_precond(safety_property, var_to_z3, loop_invariant_as_z3)(var_to_z3)
 
