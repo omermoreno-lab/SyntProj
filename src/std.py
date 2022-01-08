@@ -13,25 +13,10 @@ __INVARIANTS = []
 
 # api for interacting with globals
 
-
 def get_recorded_states():
     return __INVARIANTS
 
-
-
 # standard library
-
-# def __invariant__(*args):
-#     frame = inspect.stack()[1]
-#     module = inspect.getmodule(frame[0])
-#     rec_name = os.path.splitext(module.__file__)[0] + '.record'
-#     # print("filename is",rec_name)
-#     line = " ".join([str(arg) for arg in args])
-#     if (rec_name not in rec_files):
-#         rec_files[rec_name] = open(rec_name, 'w')
-    
-#     f = rec_files[rec_name]
-#     f.write(line + "\n")
 
 def __invariant__(*args):
     # print(f"args: {args}")
@@ -59,12 +44,3 @@ def __list_pop__(l):
 def __str_reverse__(s: str):
     s = s[::-1]
     return s
-# def test():
-#     __invariant__(1, "hello", 5.364)
-#     __invariant__(2)
-#     __invariant__("check")
-#     __invariant__(45, "asf", "asfkjasf")
-
-# if __name__ == "__main__":
-#    test() 
-

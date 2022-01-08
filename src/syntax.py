@@ -95,15 +95,11 @@ class PyExprParser(object):
 
     def __call__(self, program_text):
         tokens = list(self.tokenizer(program_text))
-        # print(f"Program Tokens: {tokens}")
         earley = Parser(grammar=self.grammar, sentence=tokens, debug=False)  # TODO: change to False when not testing
         earley.parse()
 
         if earley.is_valid_sentence():
-            # print("Program is valid, please ignore other prints")
             trees = ParseTrees(earley)
-            # print(50 * '-')
-            # print(trees)
             assert (len(trees) == 1)
             self.root = trees.nodes[0]
             return self
@@ -119,7 +115,6 @@ class PyExprParser(object):
         # TODO: change from if-else to dictionary-based matching
         if constraints is None:
             constraints = []
-        # print(f"current tree root: {t.root}")
         if t.root == "γ":
             return self._as_z3_inner(t.subtrees[0])
         elif t.root == "E":
@@ -143,7 +138,6 @@ class PyExprParser(object):
                 raise ValueError("provided E with an invalid number of subtrees")
         elif t.root == "E0":
             return self._as_z3_inner(t.subtrees[0], constraints)
-        # bool | string | FUNC_CALL | LAMBDA | LIST | ITERABLE_MEMBER
         elif t.root == "id":
             return self.var_to_z3[t.subtrees[0].root]
         elif t.root == "num":
@@ -165,8 +159,6 @@ class PyExprParser(object):
             arguments = self._as_z3_inner(t.subtrees[2])
             return f(arguments)
         elif t.root == "LIST_CONT":
-        #   LIST_CONT -> LIST_INTER | TERMINATOR
-        #   LIST_INTER -> E | E comma LIST_INTER
             return self._as_z3_inner(t.subtrees[0])
         elif t.root == "TERMINATOR":
             return []
@@ -175,23 +167,6 @@ class PyExprParser(object):
             tail = self._as_z3_inner(t.subtrees[2]) if len(t.subtrees) == 3 else []
             return curr + tail
         raise PostProcessError(t)
-
-        # elif t.root == "FUNC_CALL":
-        #     # id lparen LIST_CONT rparen
-        #     f = t.subtrees[0].subtrees[0].root
-        #     cont = PyExprParser.get_list_cont(t.subtrees[2])
-        #     return eval(f"f[{','.join(cont)}]")
-        # elif t.root == "LAMBDA":
-        #     # TODO: this option must support type inference in order to work, so meanwhile don't use it
-        #     #  I'm adding code for how it should look like
-        #     arg = t.subtrees[1].subtrees[0].root
-        #     id = PyExprParser.generate_lambda()
-        #     expr = self.postprocess(t.subtrees[3], constraints)
-        #     # declare lambda as function
-        #     # add constraint forall x: f(x) = (expression inside lambda)
-        # elif t.root == "LIST":
-        #     # currently supporting only lists of ints
-        #     l_name = PyExprParser.generate_list()
 
 
 def prove(f):
@@ -209,7 +184,6 @@ def run_test(tester, cond, vars, expected):
         res = parser(cond)
     except PyExprParserError as e:
         raise e
-    # tester.assertEqual(cond, str(res))
     
     check = And(Implies(res, expected), Implies(expected,res))
     tester.assertTrue(prove(check)[0])
@@ -221,11 +195,8 @@ class SimplePyParser(object):
              r"(?P<colon>:) (?P<lbrace>\{) (?P<rbrace>\}) (?P<assign>=) (?P<expr>[^\n]+)".split()
     GRAMMAR = r"""
     S   ->   S1 | S1 lb | S1 lb S
-    # S1  ->   ASSIGN | OP_ASSIGN | FOR | WHILE | IF | IF_ELSE | FUNC_CALL
     S1  ->   ASSIGN | FOR | WHILE | IF | IF_ELSE | FUNC_CALL
-    # ASSIGN -> id assign expr | id assign ASSIGN
     ASSIGN -> id assign expr
-    # OP_ASSIGN -> id op_assign expr
     FOR -> for id in id colon BLOCK
     WHILE -> while expr colon BLOCK
     IF -> if expr colon BLOCK
@@ -263,14 +234,11 @@ class SimplePyParser(object):
 
         program_text = add_braces(program_text)
         tokens = list(self.tokenizer(program_text))
-        # print(f"Code with added braces:\n{program_text}")
-        # print(50*'-')
-        # print(f"Program Tokens: {tokens}")
+        
         earley = Parser(grammar=self.grammar, sentence=tokens, debug=False)      # TODO: change to False when not testing
         earley.parse()
         
         if earley.is_valid_sentence():
-            # print("Program is valid, please ignore other prints")
             trees = ParseTrees(earley)
             print(50 * '-')
             # print(trees)
@@ -319,7 +287,6 @@ class SimplePyParser(object):
             if t.root == "S1":
                 return self._weakest_precond(t.subtrees[0], Q, var_to_z3)
              
-            # ASSIGN -> id assign expr
             if t.root == "ASSIGN":
                 var = t.subtrees[0].subtrees[0].root
                 expr_text = t.subtrees[2].subtrees[0].root 
@@ -362,10 +329,6 @@ class SimplePyParser(object):
     def get_wp(safety_property, program_text, loop_invariant: str, var_to_z3):
         program_lines = program_text.split("\n")
         print(program_lines)
-        # for i, _ in enumerate(program_lines):
-        #     if "while" in program_lines:
-        #         break
-        # program_lines = program_lines[i:]       # removing all lines that come before the loop
         filtered_text = ["#", "import", "__invariant"]
         program_lines = [line for line in program_lines if all(ft not in line for ft in filtered_text)]
         program_text = "\n".join(program_lines)
@@ -404,16 +367,3 @@ class TestPyExprParser(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
-
-# if __name__ == '__main__':
-#     with open('./src/test1.py', 'r') as f:
-#         text = f.read()
-#     ast = SimplePyParser()(text)
-    
-#     if ast:
-#         print(">> Valid program.")
-#         print(ast)
-#     else:
-#         print(">> Invalid program.")
-
-

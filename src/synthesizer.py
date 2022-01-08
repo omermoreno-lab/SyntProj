@@ -1,10 +1,7 @@
 # from lib.adt.tree import Visitor
-from random import SystemRandom
 import time
 import typing
-# import functools
 from itertools import chain
-# from typing_extensions import IntVar
 import prog
 import json
 import enum
@@ -47,7 +44,7 @@ class ExplorationOptType(enum.Enum):
 
 
 class Synthesizer(object):
-    prod_rules: typing.Dict[str, list[list[str]]]   # token -> production rules dictionary
+    prod_rules: typing.Dict[str, list[list[str]]]         # token -> production rules dictionary
     examples: typing.Dict[str, typing.Set[str]]           # token -> generated program examples of this token. for example, examples["Var"] = [x, y, z]
     terminals: list
     non_terminals: list[str]
@@ -106,7 +103,6 @@ class Synthesizer(object):
             return states
 
         prod_rules, tokens = parse_grammar(grammar_list)
-        # print("sorted production rules: ", Synthesizer.__dfs_sort(prod_rules))
         states = get_states(states_list)
         return Synthesizer(tokens, prod_rules, states)
 
@@ -235,8 +231,8 @@ class Synthesizer(object):
             all_new = ((ne1 + ne2) for ne1 in token_ne for ne2 in tail_ne)	                # new examples from both
 
             new_programs = list(chain(tail_new, curr_new, all_new))
-            old_programs = (oe1 + oe2 for oe1 in token_oe for oe2 in tail_oe)               # TODO: I changed this to lazy evalutaion, check if this works correctly
-                                                                                            # TODO: changed order here, check if fine
+            old_programs = (oe1 + oe2 for oe1 in token_oe for oe2 in tail_oe)               
+                                                                                            
             return new_programs, old_programs
 
         def is_expandable(pr):
@@ -248,7 +244,6 @@ class Synthesizer(object):
             new_examples[t] = flatten([(get_new_pr_examples(pr, new_examples)[0]) for pr in self.prod_rules[t] if is_expandable(pr)])
             
         def is_unique_default(example, other_examples):
-            # print(f"example: {example}, other_examples: {other_examples}")
             return all((any((res_e != res_oe for res_e, res_oe in zip(self.get_program_results(example), self.get_program_results(e)))) for e in other_examples))
 
         def make_unique_default(examples_iterable):
@@ -285,7 +280,6 @@ class Synthesizer(object):
             new_examples[token] = token_new_unique_examples
         
         self.prev_new_examples = {k: set(v) for k,v in new_examples.items()}
-        # insert examples to dictionaries
         # TODO: might be smart to also add the evaluation of programs only if they are added as examples
         print(f"new root examples: {new_examples['S']}")
         for example in new_examples['S']:
@@ -339,7 +333,7 @@ class Synthesizer(object):
             if token in visited:
                 if token in route or token in expanders:
                     expanders.extend(route)     # the complete route from the root are variables that expand on each iteration, so return all of them
-                return expanders         # noting new found here
+                return expanders                # nothing new found here
             route.append(token)
             visited.add(token)
             for pr in self.prod_rules[token]:
@@ -414,7 +408,6 @@ class Synthesizer(object):
                 if satisfies_all(program, self.states):
                     yield program
         
-        # if exp_opt == ExplorationOptType.AND_OPT:
         if True:
             print("trying to produce and operator combinations")
             pos_sat_progs = [prog for prog in get_new_invariant_examples() if satisifies_positives(prog, self.states)]
@@ -422,7 +415,6 @@ class Synthesizer(object):
             for L in range(2, len(pos_sat_progs)+1):
                 for programs in itertools.combinations(pos_sat_progs, L):
                     program = " and ".join(programs)
-                    # print(f"currently tested combination: {program}")
                     if satisfies_all(program, self.states):     # TODO: if this affects performance this can be changed to satisfies_negatives
                         yield program
 
@@ -436,19 +428,10 @@ if __name__ == "__main__":
         "VAR ::= x | y | n",
         "RELOP ::= == | != | < | <="
     ]
-    # grammar = [
-    #     "S ::= ( S BOOLOP ( VAR RELOP VAR ) ) | ( VAR RELOP VAR )",
-    #     "BOOLOP ::= and | or",
-    #     "VAR ::= x | y | n",
-    #     "RELOP ::= == | != | < | <="
-    # ]
+
     start_gen = time.time()
     states = prog.generate_examples()
     print(f"time took start_gen: {time.time() - start_gen}")
     synthesizer = Synthesizer.from_text(grammar, states)
-    # print(f"expanders are: {synthesizer.__get_exapndable_tokens()}")
     print(set(synthesizer.bottom_up_optimized(1)))
-    # print(set(synthesizer.bottom_up_enumeration(4)))
-    # print(set(synthesizer.bottom_up_enumeration(4)))
     print(f"time took synthesizer: {time.time()-start} seconds")
-    # TODO: something is wrong with the merge function, fix it!!!!!!

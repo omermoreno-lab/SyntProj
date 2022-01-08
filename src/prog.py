@@ -1,5 +1,4 @@
 import json
-import unittest
 from random import choice, randint, seed
 from string import ascii_letters
 
@@ -31,13 +30,6 @@ def __free_str__():
 def __free_int__():
     return randint(0, MAX_INT_VAL)
 
-
-# def __get_var_and_randomizer(line: str, type_str_to_randomizer: dict):
-#     # print(f"current line: {line}")
-#     var, var_type = [s.strip() for s in line.split(':')]
-#     return var, type_str_to_randomizer[var_type]
-
-
 def __get_randomized_environment(var_to_randomizer: dict):
     return {v: var_to_randomizer[v]() for v in var_to_randomizer}
 
@@ -50,20 +42,7 @@ def generate_examples(program: str, var_to_initializer: dict):
     examples = [vars]       # first entry of examples is the variables' names
     for i in range(NUM_EXAMPLES):
         exec(program, __get_randomized_environment(var_to_initializer))     # this will generate positive examples using the __invariant__ call
-
-    #     n = __free_int__()
-    #     k = __free_str__()
-    #     d = __free_list__()
-
-    #     x = y = 0
-    #     # while y < n and len(k) == 2:
-    #     while y < n:
-    #         examples.append([True, x, y, n, k, d])
-    #         x += 2
-    #         y += 1
-    #     # unreachable examples
-    #     # examples.append([False, x, y, n, k, d])
-    # # examples.append([False, -1, -2, 5, 'hafhasf', [200,33]])
+    
     examples.extend(std.get_recorded_states())
     return examples
 
@@ -97,7 +76,6 @@ def extend_recorded_states_file(record_file_path: str, records = None):
     if not records:      # the ususal case, getting the invariants from the function
         records = std.get_recorded_states()
     elif len(records) == 0:
-        # raise ValueError("States undefined, ignoring request")
         return
 
     with open(record_file_path, 'r') as f:
@@ -116,18 +94,9 @@ if __name__ == "__main__":
                 "   __invariant__(True, x, y, n, k, d)",
                 "   x += 2",
                 "   y += 1"])
-    # exec(program)
     var_to_type_text = "\n".join(["n : int",
                 "k : str",
                 "d: list[int]"])
 
     print(f"program = {program}")
     print(f"settings file = {var_to_type_text}")
-    # var_to_randomizer = dict(__get_var_and_randomizer(line, type_str_to_randomizer) for line in var_to_type_text.splitlines())
-    # print(generate_examples(program, var_to_randomizer))
-
-# if __name__ == "__main__":
-#     seed()
-#     f = __free_int__
-#     for i in range(10):
-#         print(f"random number: {f()}")
